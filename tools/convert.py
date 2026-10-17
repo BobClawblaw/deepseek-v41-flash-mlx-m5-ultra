@@ -8,7 +8,8 @@ Output, all little-endian safetensors:
   `model-vision`): DeepSeek's tensor names. Projections are MLX affine (`.weight` u32 codes, `.scales`/`.biases`
   bf16); routed experts are stacked per layer as `layers.N.ffn.experts.w{1,2,3}` [E, out, in]. Norms, routers,
   compressors, the indexers' key and weight projections and the hyper-connection tensors keep their checkpoint
-  dtypes (bf16 / f32), wo_a included as bf16 [8192, 4096] — the reference's own dtypes.
+  dtypes (bf16 / f32). wo_a, block-diagonal, is affine at the dense width, stacked by group [8, 1024, 4096] as the
+  experts are (a decode step reads it as 8 experts: 2.7 GB a token in bf16).
 - `engram/layer{L}.safetensors`: `rows` u8 [N, 264], each row the table's 256 fp8 e4m3 bytes then its 8 e8m0
   scales (one per 32), so one lookup reads one span; `engram/hash.safetensors`: the hash state engram.py derives
   from the tokenizer (token_map, multipliers, primes, offsets). These files are mapped, never loaded.
@@ -115,6 +116,13 @@ def quant(w: mx.array, bits: int, group: int, out: dict, name: str):
     mx.eval(q, s, b)
 
 
+def stacked_wo_a(w: mx.array, bits: int, group: int, out: dict, name: str, groups: int = 8):
+    """wo_a [groups * rank, in] -> affine [groups, rank, in] (rows quantize independently, so a reshape of the codes)."""
+    quant(w, bits, group, out, name)
+    for part in (".weight", ".scales", ".biases"):
+        out[name + part] = out[name + part].reshape(groups, -1, out[name + part].shape[-1])
+
+
 def parse_layer_bits(spec: str) -> dict[int, int]:
     out = {}
     for part in filter(None, spec.split(",")):
@@ -157,12 +165,17 @@ def block(src: Source, prefix: str, n_experts: int, expert_bits: int, a, quant_c
             continue
         mod = rest.rsplit(".", 1)[0]
         info = src.info(name)
-        if rest.endswith(".weight") and any(mod.endswith(d) for d in DENSE_AFFINE):
+        bits = a.block_dense_bits or a.dense_bits
+        if rest.endswith(".weight") and (mod == "attn.wo_a" or any(mod.endswith(d) for d in DENSE_AFFINE)):
             w = dequant_fp8(src.np(name), src.np(name[: -len("weight")] + "scale"))
-            quant(w, a.dense_bits, a.dense_group, t, prefix + mod)
-        elif rest == "attn.wo_a.weight":
-            t[name] = dequant_fp8(src.np(name), src.np(prefix + "attn.wo_a.scale"))
-        elif info["dtype"] == "BF16":
+            if mod == "attn.wo_a":
+                stacked_wo_a(w, bits, a.dense_group, t, prefix + mod)
+            else:
+                quant(w, bits, a.dense_group, t, prefix + mod)
+            if bits != a.dense_bits:
+                quant_cfg[prefix + mod] = {"bits": bits, "group_size": a.dense_group}
+            continue
+        if info["dtype"] == "BF16":
             t[name] = bf16(src.np(name))
         elif info["dtype"] == "F32":
             t[name] = mx.array(src.np(name))
@@ -246,6 +259,8 @@ def main():
     p.add_argument("--dense-bits", type=int, default=8)
     p.add_argument("--dense-group", type=int, default=64)
     p.add_argument("--layer-bits", default="", help="expert widths by layer, e.g. 0-1:3,39:3")
+    p.add_argument("--block-dense-bits", type=int, default=None,
+                   help="the blocks' and DSpark stages' projections (default --dense-bits; head and tower keep it)")
     p.add_argument("--mtp-expert-bits", type=int, default=None)
     p.add_argument("--only", default="", help="debug: comma-separated parts (blocks,head,mtp,vision,engram,hash)")
     a = p.parse_args()
@@ -308,7 +323,8 @@ def main():
     cfg["quantization"] = quant_cfg
     cfg["engram_files"] = {str(layer): f"engram/layer{layer}.safetensors" for layer in text["engram_layer_ids"]}
     cfg["source"] = {"repo": "deepseek-ai/DeepSeek-V4.1-Flash-1017", "expert_bits": a.expert_bits,
-                     "layer_bits": a.layer_bits, "dense_bits": a.dense_bits}
+                     "layer_bits": a.layer_bits, "dense_bits": a.dense_bits,
+                     "block_dense_bits": a.block_dense_bits or a.dense_bits}
     json.dump(cfg, open(os.path.join(a.out, "config.json"), "w"), indent=1)
     for f in ("tokenizer.json", "tokenizer_config.json", "LICENSE"):
         if os.path.exists(os.path.join(a.hf, f)):

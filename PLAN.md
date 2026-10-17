@@ -106,5 +106,20 @@ top-1 agreement and logit error against the shipped fp4 weights).
 - Harness (recipe-harness target deepseek-v41-m5, plan speed, run 20261017-145733): ruler c=1 prose/code/structured/
   list 41.1/56.7/48.4/62.2 tok/s, ttft 0.15-0.22 s; c=2 aggregate 42.7/58.3/49.4/78.5; turns: 4541/4561 cached,
   ttft 0.22 s vs 2.04 s cold, replies equal. Qwen3.8-Flash-Next on 8888 (its 120921 run): 142/210/173/206 at c=1.
-- Still to do for speed: prompt chunks on the tensor units (core/affine_mm), wo_a, fewer dispatches.
+- Decode speed (2026-10-17, DS_TIMING GPU ms a step, 24-token prompt, mix23): 27.2 -> 25.6 (attention split by
+  keys: 8 heads share each key tile, chunks merged with the sink; at 1,500 tokens 42.0 -> 25.9) -> 23.1 (the
+  boundary's Sinkhorn on a simdgroup). Deterministic run to run; these reorder float sums, which moves logits a
+  bf16 step at position 0 and up to a few units later (routing near-ties), as the validated split change did.
+  DS_ABLATE (each kernel left out): row projections 7.2 ms, routed experts 3.9, gemv bf16 2.8 (wo_a), attention
+  2.5; 1,401 dispatches a step at ~4 us each, serial or barrier alike (DS_DISPATCH).
+- Dense bytes dominate decode: ~6 GB of 8-bit projections a token (wq_b and wo_b 42M each a layer, the shared
+  expert 35M) against <0.1 GB of routed experts; the row kernels run them at ~860 GB/s.
+- wo_a: affine, stacked by group [8, 1024, 4096], decode through the indexed expert kernels, prompts through
+  affine_mm's denseBatch (convert.py writes it; the engine keeps the bf16 path for older checkpoints).
+  Incident: a first in-place rewrite of mix23's shards (mx.load + mx.save_safetensors) wrote 26 MB files under
+  full headers; the blocks were reconverted from the HF source (convert.py --only blocks,mtp). Never rewrite a
+  checkpoint in place; convert to a new file and check its size against its header first.
+- Concurrent encoder: every dispatch behind a barrier unless marked to run beside the one before (q and kv chains,
+  routed gate/up, the shared expert beside routing and the routed experts). Fused: kv_norm+RoPE+fp8+ring put
+  (ds_kv_finish), the merge's inverse RoPE + fp8 (ds_attend_merge finish).
 - tools/yield.sh pauses the converter/study while another session runs a TensorFold engine or benchmark.
