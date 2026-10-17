@@ -80,5 +80,11 @@ top-1 agreement and logit error against the shipped fp4 weights).
   boundaries 4.5, attn proj 4.1, compress+index 1.7, attend 4.9, attn out 5.3, route 1.3, experts 3.7,
   shared 2.2, engram 0.4, head 0.6. A shared-key-tile attention (8 heads a threadgroup) was slower (17.9 ms:
   8 threadgroups a decode step) and was reverted; next: split keys across threadgroups (flash decoding).
+- Prompt chunks: tensor units (core/affine_mm dense; experts sorted + gathered), shared-tile attention for prompt
+  rows, engram pages prefetched (madvise WILLNEED: the gather was 984 ms of a 256-row chunk, now ~80): a 256-token
+  chunk 2.8 s -> 0.85 s (~300 tok/s); decode 27.7 ms a step (~36 tok/s) on 24 tokens, 44 ms averaged over 1,500.
+- Long context (1,500 tokens of README + code, real indexer selection past 512): next-token accuracy native 75.25%
+  (chunks and decode alike) vs the reference's 75.12%; logit rel error flat 0.13-0.14 over positions. Layer 36's
+  picks vs the reference fed the native streams: 99.5% mean overlap (min 97.9%), every row under 512 exact.
 - Still to do for speed: prompt chunks on the tensor units (core/affine_mm), wo_a, fewer dispatches.
 - tools/yield.sh pauses the converter/study while another session runs a TensorFold engine or benchmark.
