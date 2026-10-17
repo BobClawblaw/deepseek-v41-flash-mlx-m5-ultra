@@ -1,11 +1,11 @@
-"""python3 -m mac up|down|status|logs|build|convert|command|chat|validate"""
+"""python3 -m mac up|down|status|logs|build|convert|command|chat|validate|launchd"""
 
 import argparse
 import shlex
 import subprocess
 import sys
 
-from . import config, engine, serve
+from . import config, engine, launchd, serve
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -25,6 +25,8 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("prompt")
     c.add_argument("--max-tokens", type=int, default=128)
     sub.add_parser("validate", help="check the settings, the checkpoint and the build without starting anything")
+    ld = sub.add_parser("launchd", help="write the launchd unit (not loaded) serving PORT to the LAN")
+    ld.add_argument("--port", type=int, default=8888)
     a = p.parse_args(argv)
     s = config.load()
     if a.cmd == "up":
@@ -54,6 +56,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"TENSORFOLD_LIBTURBOJPEG={s.jpeg_lib} " + shlex.join(s.serve_args()))
     elif a.cmd == "chat":
         print(serve.chat(s, a.prompt, a.max_tokens))
+    elif a.cmd == "launchd":
+        print(launchd.write(s, a.port))
     elif a.cmd == "validate":
         problems = config.validate(s)
         print("\n".join(problems) if problems else "ok")
