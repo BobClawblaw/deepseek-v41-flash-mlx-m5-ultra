@@ -75,4 +75,10 @@ top-1 agreement and logit error against the shipped fp4 weights).
   Chunked prefill and one-row decode give bit-identical logits to the one-call forward.
 - Served (tensorfold-native serve, port 8890): chat with thinking on/off correct, reasoning split; first unoptimized
   decode ~14 tok/s (curl timing, not a harness number), first token 3.0 s on 25 prompt tokens (row kernels).
+- Decode speed (tf-dsv41-forward, 24 one-row steps, DS_PROFILE for sections): 61 ms -> 30.9 ms a step after
+  parallel routing (22 -> 1.3 ms) and parallel hyper-connection mixes (7.5 -> 4.5 ms). GPU ms a step then:
+  boundaries 4.5, attn proj 4.1, compress+index 1.7, attend 4.9, attn out 5.3, route 1.3, experts 3.7,
+  shared 2.2, engram 0.4, head 0.6. A shared-key-tile attention (8 heads a threadgroup) was slower (17.9 ms:
+  8 threadgroups a decode step) and was reverted; next: split keys across threadgroups (flash decoding).
+- Still to do for speed: prompt chunks on the tensor units (core/affine_mm), wo_a, fewer dispatches.
 - tools/yield.sh pauses the converter/study while another session runs a TensorFold engine or benchmark.
