@@ -1,0 +1,6 @@
+[
+  {"name": "chat", "prompt": "Explain in a short paragraph why the sky looks blue during the day but red at sunset."},
+  {"name": "code", "prompt": "Write a Python function that returns the longest palindromic substring of a string, with a docstring and two doctests."},
+  {"name": "math", "prompt": "A train leaves at 9:40 and travels 210 km at 84 km/h. At what time does it arrive? Show the steps."},
+  {"name": "zh", "prompt": "用三句话介绍一下长城的历史。"}
+]
