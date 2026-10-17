@@ -130,15 +130,20 @@ class Writer:
         self.out = out_dir
         self.weight_map = {}
         self.bytes = 0
+        index = os.path.join(out_dir, "model.safetensors.index.json")
+        if os.path.exists(index):  # a partial run (--only) replaces its shards' entries, keeps the others
+            self.weight_map = json.load(open(index))["weight_map"]
 
     def save(self, shard: str, tensors: dict):
         path = os.path.join(self.out, f"model-{shard}.safetensors")
         mx.save_safetensors(path, tensors, metadata={"format": "mlx"})
+        name = os.path.basename(path)
+        self.weight_map = {k: v for k, v in self.weight_map.items() if v != name}
         for n in tensors:
-            self.weight_map[n] = os.path.basename(path)
-        self.bytes += os.path.getsize(path)
+            self.weight_map[n] = name
 
     def finish(self):
+        self.bytes = sum(os.path.getsize(os.path.join(self.out, f)) for f in set(self.weight_map.values()))
         json.dump({"metadata": {"total_size": self.bytes}, "weight_map": self.weight_map},
                   open(os.path.join(self.out, "model.safetensors.index.json"), "w"), indent=1)
 
@@ -269,12 +274,19 @@ def main():
         quant(bf16(src.np("head.weight")), a.dense_bits, a.dense_group, t, "head")
         wr.save("head", t)
     if "vision" in parts:
+        # the tower's and the aligner's projections affine at the dense width (the tensor units take them); the
+        # patch embedding (588 inputs, no group of 64 divides it), biases, norms and the span embeddings as stored
         t = {}
         for n in src.names("vision.") + src.names("aligner.") + ["image_start", "image_end", "image_newline"]:
             info = src.info(n)
-            t[n] = bf16(src.np(n)) if info["dtype"] == "BF16" else mx.array(src.np(n))
+            v = bf16(src.np(n)) if info["dtype"] == "BF16" else mx.array(src.np(n))
+            mod = n.rsplit(".", 1)[0]
+            if n.endswith(".weight") and mod.rsplit(".", 1)[-1] in ("wqkv", "wo", "w1", "w2") and v.ndim == 2:
+                quant(v, a.dense_bits, a.dense_group, t, mod)
+            else:
+                t[n] = v
         wr.save("vision", t)
-    if "blocks" in parts or "head" in parts:
+    if parts & {"blocks", "head", "mtp", "vision"}:
         wr.finish()
     if "engram" in parts:
         for layer in text["engram_layer_ids"]:
@@ -289,6 +301,10 @@ def main():
     for k in ("bos_token_id", "eos_token_id", "pad_token_id", "image_token_id"):
         cfg[k] = hf_cfg[k]
     cfg["vision_config"] = hf_cfg["vision_config"]
+    old_cfg = os.path.join(a.out, "config.json")
+    if "blocks" not in parts and os.path.exists(old_cfg):  # a partial run keeps the experts' widths it did not write
+        kept = json.load(open(old_cfg))["quantization"]
+        quant_cfg = {**kept, **{k: v for k, v in quant_cfg.items() if k not in ("bits", "group_size", "mode")}}
     cfg["quantization"] = quant_cfg
     cfg["engram_files"] = {str(layer): f"engram/layer{layer}.safetensors" for layer in text["engram_layer_ids"]}
     cfg["source"] = {"repo": "deepseek-ai/DeepSeek-V4.1-Flash-1017", "expert_bits": a.expert_bits,

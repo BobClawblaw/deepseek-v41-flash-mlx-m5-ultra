@@ -37,14 +37,24 @@ def mlx_affine(w: torch.Tensor, bits: int, group: int) -> torch.Tensor:
     return torch.from_numpy(np.array(mx.dequantize(wq, s, b, group_size=group, bits=bits).astype(mx.float32)))
 
 
-def affine_experts(bits: int, group: int):
-    """Route model.linear's fp4 expert weights through the converter's affine codes, bf16 activations."""
+def affine_experts(bits: int, group: int, layer_bits: dict[int, int] | None = None):
+    """Route model.linear's fp4 expert weights through the converter's affine codes, bf16 activations; `layer_bits`
+    gives some layers another width (the MoE being run is tracked through its forward)."""
     plain = M.linear
+    current = {"layer": -1}
+    moe_forward = M.MoE.forward
+
+    def tracked(self, *args, **kwargs):
+        current["layer"] = self.layer_id
+        return moe_forward(self, *args, **kwargs)
+
+    M.MoE.forward = tracked
 
     def linear(x, weight, bias=None):
         if weight.dtype != torch.float4_e2m1fn_x2:
             return plain(x, weight, bias)
-        wd = mlx_affine(dequant_fp4(weight, weight.scale), bits, group)
+        b = (layer_bits or {}).get(current["layer"], bits)
+        wd = mlx_affine(dequant_fp4(weight, weight.scale), b, group)
         return (x.float() @ wd.T).to(torch.get_default_dtype())
 
     M.linear = linear

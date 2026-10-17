@@ -7,7 +7,8 @@
       messages[0] and renders them only on a system message, so they would vanish);
     - a reasoning effort it does not name ("medium", "minimal") takes the default, "high" (75);
     - the assistant header after the last user turn follows add_generation_prompt (encode_messages always adds it).
-    Not rendered: image parts (text only), response_format. -#}
+    Image parts become the image placeholder, which the server expands to the image's rows. Not rendered:
+    response_format. -#}
 {%- set bos = "<｜begin▁of▁sentence｜>" -%}
 {%- set eos = "<｜end▁of▁sentence｜>" -%}
 {%- set dsml = "｜DSML｜" -%}
@@ -117,6 +118,8 @@
       {%- if not loop.first -%}{{- "\n\n" -}}{%- endif -%}
       {%- if b.type == "text" -%}
         {{- b.text if b.text is defined and b.text is not none else "" -}}
+      {%- elif b.type in ["image", "image_url"] -%}
+        {{- "<｜deepseek_image｜>" -}}
       {%- elif b.type == "tool_result" -%}
         {%- set tb = sorted.v[r.n] -%}{%- set r.n = r.n + 1 -%}
         {%- if tb.content is string -%}
@@ -124,7 +127,7 @@
         {%- else -%}
           {%- set parts = namespace(v=[]) -%}
           {%- for p in tb.content -%}
-            {%- set parts.v = parts.v + [p.text if p.type == "text" else "[Unsupported " ~ p.type ~ "]"] -%}
+            {%- set parts.v = parts.v + [p.text if p.type == "text" else ("<｜deepseek_image｜>" if p.type in ["image", "image_url"] else "[Unsupported " ~ p.type ~ "]")] -%}
           {%- endfor -%}
           {%- set body = parts.v | join("\n\n") -%}
         {%- endif -%}

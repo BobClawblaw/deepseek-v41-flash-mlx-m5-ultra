@@ -35,10 +35,18 @@ def replies(a):
 
 
 def logits(a):
+    tag = a.experts
     if a.experts != "fp4":
         bits, group = a.experts[1:].split("g")
-        run.affine_experts(int(bits), int(group))
-    tag = a.experts
+        layer_bits = {}
+        for part in filter(None, a.layer_bits.split(",")):
+            rng, b = part.split(":")
+            lo, _, hi = rng.partition("-")
+            for i in range(int(lo), int(hi or lo) + 1):
+                layer_bits[i] = int(b)
+        run.affine_experts(int(bits), int(group), layer_bits)
+        if a.layer_bits:
+            tag += "-L" + a.layer_bits.replace(":", "b").replace(",", "_")
     if a.dense != "fp8":
         bits, group = a.dense[1:].split("g")
         run.affine_dense(int(bits), int(group))
@@ -77,6 +85,7 @@ def main():
     p.add_argument("out")
     p.add_argument("--experts", default="fp4")
     p.add_argument("--dense", default="fp8")
+    p.add_argument("--layer-bits", default="", help="expert widths by layer over --experts', e.g. 0-9:3")
     p.add_argument("--max-new", type=int, default=64)
     p.add_argument("--threads", type=int, default=24)
     a = p.parse_args()

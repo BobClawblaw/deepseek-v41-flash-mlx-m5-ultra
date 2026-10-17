@@ -2,7 +2,7 @@
 
   python template/check.py [--native]   # every case: OK, or the first difference (--native: TensorFold's engine too)
 
-Cases: the five fixtures DeepSeek ships with the encoder (text-only ones; image cases are skipped), and the request
+Cases: the five fixtures DeepSeek ships with the encoder, and the request
 shapes a server sees. Messages are normalized as the native server does before its template runs (call arguments
 parsed to objects). A case with tools and no system message is compared against the encoder given an empty system
 message first (the template's documented departure).
@@ -55,6 +55,12 @@ CASES = [
     ("mid-conversation system", {"messages": [
         {"role": "system", "content": "First."}, {"role": "user", "content": "a"}, {"role": "assistant", "content": "b"},
         {"role": "system", "content": "Now answer in French."}]}, "thinking", None),
+    ("an image then a question", {"messages": [{"role": "user", "content": [
+        {"type": "image_url", "image_url": {"url": "a.jpg"}}, {"type": "text", "text": "What is in this picture?"}]}]}, "chat", None),
+    ("two images, thinking, a turn after", {"messages": [
+        {"role": "user", "content": [{"type": "text", "text": "Compare:"}, {"type": "image_url", "image_url": {"url": "a.jpg"}},
+                                     {"type": "image_url", "image_url": {"url": "b.jpg"}}]},
+        {"role": "assistant", "content": "The first is brighter."}, {"role": "user", "content": "Why?"}]}, "thinking", None),
     ("consecutive user turns merge", {"messages": [{"role": "user", "content": "one"}, {"role": "user", "content": "two"}]}, "chat", None),
 ]
 
@@ -95,10 +101,6 @@ def expected(case, thinking, effort):
 def fixtures():
     d = os.path.join(HERE, "..", "ref", "encoding", "tests")
     for i in range(1, 6):
-        raw = json.load(open(os.path.join(d, f"test_input_{i}.json")))
-        if "image" in json.dumps(raw):
-            print(f"fixture {i}: skipped (images)")
-            continue
         for case in E.load_cases(os.path.join(d, f"test_input_{i}.json")):
             want = open(os.path.join(d, f"test_output_{i}.txt")).read()
             msgs = case["messages"]
