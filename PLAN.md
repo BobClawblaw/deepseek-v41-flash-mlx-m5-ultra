@@ -96,5 +96,15 @@ top-1 agreement and logit error against the shipped fp4 weights).
 - Requant study (teacher-forced on fp4 greedy replies, 4 prompts x 64 tokens): mean top-1 / KL vs fp4:
   q2g64 0.894 / 0.289, q2g32 0.894 / 0.260, q3g64 0.940 / 0.120 (zh worst at every width). 3-bit everywhere does
   not fit (~238 GB); a 2/3 mix of ~20 layers at 3-bit would (~208 GB); needs a layer-sensitivity pass.
+- Mixed checkpoint (2026-10-17): layers 10-29 3-bit experts (quarter sweep: mean KL vs fp4 by 3-bit quarter
+  0-9 0.277, 10-19 0.230, 20-29 0.173, 30-39 0.280, none 0.289, all 0.120), ~/models/...-mix23-d8, 206 GiB in use.
+- Vision: preparation bit-exact with image_processor.py (both example images); the tower+aligner vs a reference with
+  the same 8-bit codes: most rows cos 0.999-1.000, a few outliers 0.89-0.98; carrots/corn described correctly
+  through the server; template 36/36 (image fixture included).
+- Streams take turns (--parallel up to 4): two at once reply as alone.
+- Recipe: python3 -m mac (up/down/status/logs/build/convert/command/chat/validate/launchd), tests.
+- Harness (recipe-harness target deepseek-v41-m5, plan speed, run 20261017-145733): ruler c=1 prose/code/structured/
+  list 41.1/56.7/48.4/62.2 tok/s, ttft 0.15-0.22 s; c=2 aggregate 42.7/58.3/49.4/78.5; turns: 4541/4561 cached,
+  ttft 0.22 s vs 2.04 s cold, replies equal. Qwen3.8-Flash-Next on 8888 (its 120921 run): 142/210/173/206 at c=1.
 - Still to do for speed: prompt chunks on the tensor units (core/affine_mm), wo_a, fewer dispatches.
 - tools/yield.sh pauses the converter/study while another session runs a TensorFold engine or benchmark.
