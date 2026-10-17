@@ -66,5 +66,8 @@ top-1 agreement and logit error against the shipped fp4 weights).
 - Engine (worktree): families/deepseek_v41 (config, weights, engram (mmap, CPU hash+gather), state, kernels,
   forward, backend), kernels/metal/deepseek/v41.metal, native/deepseek_v41.zig, tf-dsv41-forward check program.
   Builds; not yet run on the GPU.
-- Chat template: the checkpoint ships none (encoding/encoding.py only); the server needs a chat_template.jinja.
+- Chat template: template/chat_template.jinja renders byte-identical to encode_messages on 15 cases (4 DeepSeek
+  fixtures + 11 request shapes), in jinja2 and in TensorFold's own engine (template/check.py --native: 30/30);
+  converter copies it into the checkpoint. Server parses V4.1's spaced DSML tool calls (worktree commit 8af7f39e).
+- First GPU attempts stopped (GPU busy, 2026-10-17): the first exited after 1:48 with no output, cause unknown.
 - tools/yield.sh pauses the converter/study while another session runs a TensorFold engine or benchmark.
