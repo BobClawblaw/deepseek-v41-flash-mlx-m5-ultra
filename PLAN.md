@@ -69,5 +69,10 @@ top-1 agreement and logit error against the shipped fp4 weights).
 - Chat template: template/chat_template.jinja renders byte-identical to encode_messages on 15 cases (4 DeepSeek
   fixtures + 11 request shapes), in jinja2 and in TensorFold's own engine (template/check.py --native: 30/30);
   converter copies it into the checkpoint. Server parses V4.1's spaced DSML tool calls (worktree commit 8af7f39e).
-- First GPU attempts stopped (GPU busy, 2026-10-17): the first exited after 1:48 with no output, cause unknown.
+- GPU (2026-10-17, 8888 unloaded for it): the native forward matches the CPU reference block by block (each
+  block's own error ~0.1-1% of the non-outlier channels, one bf16 step; isolated spikes = near-tied expert routes),
+  top-1 23/24 on the check case (the miss a three-way near tie in the prompt), every reply position equal.
+  Chunked prefill and one-row decode give bit-identical logits to the one-call forward.
+- Served (tensorfold-native serve, port 8890): chat with thinking on/off correct, reasoning split; first unoptimized
+  decode ~14 tok/s (curl timing, not a harness number), first token 3.0 s on 25 prompt tokens (row kernels).
 - tools/yield.sh pauses the converter/study while another session runs a TensorFold engine or benchmark.
