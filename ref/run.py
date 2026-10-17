@@ -76,8 +76,9 @@ def affine_dense(bits: int, group: int):
 
 
 @torch.inference_mode()
-def forward_all(model, ids: torch.Tensor, start_pos: int = 0, dump: dict | None = None):
-    """Transformer.forward with every position's logits (and the streams after each block when dumping)."""
+def forward_all(model, ids: torch.Tensor, start_pos: int = 0, dump: dict | None = None, feed=None):
+    """Transformer.forward with every position's logits (and the streams after each block when dumping). `feed(i)`:
+    the streams to start block i from instead of the reference's own (another engine's, to see each block's error)."""
     hashes = model.engram_hash(ids, start_pos, None) if model.engram_hash is not None else None
     h = model.embed(ids)
     h = h.unsqueeze(2).repeat(1, 1, model.hc_mult, 1)
@@ -86,6 +87,8 @@ def forward_all(model, ids: torch.Tensor, start_pos: int = 0, dump: dict | None 
         dump["embed"] = h[:, :, 0].clone()
     for i, layer in enumerate(model.layers):
         t = time.time()
+        if feed is not None and i > 0:
+            h = feed(i).to(h.dtype)
         if layer.engram is not None:
             h = layer.engram(h, hashes[:, :, layer.engram.layer_hash_index, :], None)
         h, pre_mix = layer(h, start_pos, pre_mix, None)
@@ -129,6 +132,7 @@ def main():
     p.add_argument("--experts", default="fp4")
     p.add_argument("--dense", default="fp8", help="fp8, or qBgG: the converter's affine projections and head")
     p.add_argument("--dump-layers", action="store_true")
+    p.add_argument("--feed", help="a tf-dsv41-forward out dir: each block starts from its streams (one case)")
     p.add_argument("--max-seq-len", type=int, default=4096)
     p.add_argument("--threads", type=int, default=16)
     a = p.parse_args()
@@ -155,7 +159,14 @@ def main():
     for case in cases:
         ids = torch.tensor([case["ids"]])
         dump = {} if a.dump_layers else None
-        logits = forward_all(model, ids, 0, dump)
+        feed = None
+        if a.feed:
+            import numpy as np
+
+            def feed(i, n=ids.shape[1]):
+                raw = np.fromfile(os.path.join(a.feed, f"layer{i - 1}.bin"), dtype=np.uint16)
+                return torch.from_numpy((raw.astype(np.uint32) << 16).view(np.float32).reshape(1, n, 4, -1))
+        logits = forward_all(model, ids, 0, dump, feed)
         result.append({"name": case["name"], "ids": case["ids"], "logits": logits[0].float(), "dump": dump})
     torch.save(result, a.out)
 
