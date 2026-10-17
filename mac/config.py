@@ -18,6 +18,7 @@ class Settings:
     expert_bits: int = 2
     layer_bits: str = ""
     dense_bits: int = 8
+    block_dense_bits: int = 8
     tensorfold_src: str = ""
     tensorfold_sha: str = ""
     zig: str = ""
@@ -61,6 +62,11 @@ class Settings:
     @property
     def built_binary(self) -> Path:
         return self.worktree / "zig-out" / "native" / "bin" / "tensorfold-native"
+
+    @property
+    def built_grammar(self) -> Path:
+        """libtfgrammar (xgrammar), which the server loads beside its binary (../lib) at the first structured request."""
+        return self.worktree / "zig-out" / "native" / "lib" / "libtfgrammar.dylib"
 
     @property
     def run_binary(self) -> Path:

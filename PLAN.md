@@ -122,4 +122,21 @@ top-1 agreement and logit error against the shipped fp4 weights).
 - Concurrent encoder: every dispatch behind a barrier unless marked to run beside the one before (q and kv chains,
   routed gate/up, the shared expert beside routing and the routed experts). Fused: kv_norm+RoPE+fp8+ring put
   (ds_kv_finish), the merge's inverse RoPE + fp8 (ds_attend_merge finish).
+  Bit-identical to the serial build on e2g64-d8 (logits over 24 and 1,500 tokens byte-equal): 22.6 -> 20.7 ms.
+  The sublayer expand deferred into the next boundary's mix sums with the MoE combine inline: also bit-identical,
+  no measurable gain (those barriers were not the cost).
+- Native quality check (tools/native_kl.py: the engine teacher-forced on the study's fp4 replies, chunk 1):
+  mix23 8-bit projections KL 0.136 / top-1 0.905; mix23 with the blocks' projections 4-bit (convert.py
+  --block-dense-bits 4, head and tower 8-bit) KL 0.145 / top-1 0.905, decode 21.2 -> 17.7 ms a step at 1,500
+  tokens, long next-token accuracy 0.7485, drafts equal plain 128/128 (77 tok/s drafted, 52 plain). Adopted:
+  ~/models/DeepSeek-V4.1-Flash-1017-TF-mix23-d8b4 (200.5 GiB of shards).
+- Harness speed (run 20261017-175442, engine 2f1c1009): ruler c=1 prose/code/structured/list
+  57.7/90.5/69.5/93.1 tok/s (was 41.1/56.7/48.4/62.2), ttft 0.13-0.19 s; c=2 62.6/90.1/74.3/112.6; turns 4541 of
+  4569 cached, ttft 0.20 s vs 1.77 s cold, replies equal. No quality suite run (not asked for).
+- Structured output: libtfgrammar built by the recipe (xgrammar v0.2.8); the backend hands the lane core its held
+  drafts; json_object and json_schema replies parse and fit the schema through the server.
+- Served (2026-10-17): the LAN's default server on 8888 (launchd com.tensorfold.deepseek-v41, host 0.0.0.0);
+  com.tensorfold.qwen38-vision disabled (launchctl enable gui/$UID/com.tensorfold.qwen38-vision undoes it).
+  Through it: text, code, tools, JSON, images (carrots, corn), a repeated image cached, a mirrored image of the same
+  size not taken from the cache.
 - tools/yield.sh pauses the converter/study while another session runs a TensorFold engine or benchmark.

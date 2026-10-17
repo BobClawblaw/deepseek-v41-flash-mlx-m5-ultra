@@ -9,8 +9,10 @@ import urllib.request
 
 from .config import Settings
 
-# the weights' resident share once loaded (GiB): the experts at their widths, 8-bit dense, vision, DSpark
-WEIGHTS_GIB = 191
+
+def weights_gib(s: Settings) -> float:
+    """The checkpoint's resident share once loaded: its safetensors shards (the engram tables stay on disk)."""
+    return sum(f.stat().st_size for f in s.model.glob("*.safetensors")) / 2**30
 
 
 def health(s: Settings, timeout: float = 3) -> dict | None:
@@ -41,7 +43,7 @@ def free_gib() -> float:
 
 
 def memory_check(s: Settings) -> None:
-    need = WEIGHTS_GIB + s.memory_margin_gib + max(s.prompt_cache_gib, 0)
+    need = weights_gib(s) + s.memory_margin_gib + max(s.prompt_cache_gib, 0)
     have = free_gib()
     if have < need:
         raise SystemExit(f"{have:.0f} GiB free, the server needs {need:.0f}: stop other models (8888's?) first")

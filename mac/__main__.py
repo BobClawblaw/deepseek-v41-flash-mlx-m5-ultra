@@ -49,7 +49,8 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit(f"{s.source_repo}@{s.source_revision[:8]} is not in the Hugging Face cache: "
                              f"hf download {s.source_repo} --revision {s.source_revision}")
         cmd = [sys.executable, str(config.ROOT / "tools" / "convert.py"), str(hf), str(s.model), "--expert-bits",
-               str(s.expert_bits), "--layer-bits", s.layer_bits, "--dense-bits", str(s.dense_bits)]
+               str(s.expert_bits), "--layer-bits", s.layer_bits, "--dense-bits", str(s.dense_bits),
+               "--block-dense-bits", str(s.block_dense_bits)]
         print("+", shlex.join(cmd), flush=True)
         return subprocess.run(cmd).returncode
     elif a.cmd == "command":

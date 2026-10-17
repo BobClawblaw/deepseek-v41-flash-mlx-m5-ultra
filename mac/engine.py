@@ -1,5 +1,6 @@
 """The engine: a worktree of the TensorFold checkout at the pinned commit, built under tf_cache (never in the
-checkout), and libjpeg-turbo 3.1.4.1 built from its release beside it (the engine's JPEG decoder pins that release)."""
+checkout), libjpeg-turbo 3.1.4.1 built from its release beside it (the engine's JPEG decoder pins that release), and
+libtfgrammar (structured output) from xgrammar at the tag the engine pins."""
 
 import shutil
 import ssl
@@ -9,6 +10,11 @@ import urllib.request
 from pathlib import Path
 
 from .config import JPEG_VERSION, Settings
+
+# xgrammar's release the engine's structured output is built against (zig/build/grammar.zig pins the tag), and its commit
+XGRAMMAR_TAG = "v0.2.8"
+XGRAMMAR_COMMIT = "97787376faee5ed8466cfad57c99855e4ce2f6aa"
+XGRAMMAR_REPO = "https://github.com/mlc-ai/xgrammar"
 
 JPEG_URL = f"https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/{JPEG_VERSION}/libjpeg-turbo-{JPEG_VERSION}.tar.gz"
 
@@ -55,7 +61,25 @@ def build_jpeg(s: Settings) -> Path:
     return s.jpeg_lib
 
 
+def build_grammar(s: Settings, rebuild: bool = False) -> Path:
+    """libtfgrammar beside the binary (the server loads it at the first structured request): xgrammar cloned once into
+    tf_cache with its submodules, then zig build grammar in the worktree."""
+    if s.binary or (s.built_grammar.exists() and not rebuild):
+        return s.built_grammar
+    root = s.cache / f"xgrammar-{XGRAMMAR_TAG}"
+    if not (root / ".git").exists():
+        _run(["git", "clone", "--branch", XGRAMMAR_TAG, "--recurse-submodules", XGRAMMAR_REPO, str(root)])
+    head = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+    if head != XGRAMMAR_COMMIT:
+        raise SystemExit(f"{root} is at {head[:8]}, not xgrammar {XGRAMMAR_TAG}'s {XGRAMMAR_COMMIT[:8]}; remove it to clone again")
+    _run([s.path(s.zig).as_posix(), "build", "grammar", f"-Dxgrammar={root}", f"-Dcpu={s.zig_cpu}"], cwd=s.worktree)
+    if not s.built_grammar.exists():
+        raise SystemExit(f"the build left no {s.built_grammar}")
+    return s.built_grammar
+
+
 def build(s: Settings, rebuild: bool = False) -> None:
     build_engine(s, rebuild)
+    build_grammar(s, rebuild)
     if s.vision:
         build_jpeg(s)
