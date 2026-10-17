@@ -1,8 +1,8 @@
-.venv/
-logs/
-local.toml
 __pycache__/
+.venv/
 *.pyc
-work/
-template/render_native
+local.toml
+logs/
 ref/encoding/tests/
+template/render_native
+work/

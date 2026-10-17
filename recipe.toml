@@ -1,0 +1,43 @@
+# The recipe's defaults. `local.toml` next to this file overrides them for this Mac (copy local.example.toml); an
+# environment variable of the same name in upper case overrides both (PORT=8890 python3 -m mac up).
+
+[model]
+# DeepSeek's release, converted on this Mac by tools/convert.py (no MLX checkpoint of V4.1 exists to download)
+source_repo = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+source_revision = "1bae0e1088993b9b82de08f59de5be5a34e42170"
+served_name = "DeepSeek-V4.1-Flash"
+# the converted checkpoint: routed experts 2-bit (groups of 64) but layers 10-29 at 3-bit (the requant study's pick),
+# everything else 8-bit, the engram tables (189 GiB) beside it on disk, read where a lookup lands
+model_dir = "~/models/DeepSeek-V4.1-Flash-1017-TF-mix23-d8"
+expert_bits = 2
+layer_bits = "10-29:3"
+dense_bits = 8
+
+[engine]
+tensorfold_src = "~/github/TensorFold"   # a checkout holding the sha; `build` adds a worktree at it under tf_cache
+tensorfold_sha = ""                      # the deepseek-v41 branch's commit to build (local.toml pins it)
+zig = "~/tools/zig-aarch64-macos-0.17.0/zig"
+zig_cpu = "native"                       # this Mac's M5 (the tensor-unit prompt kernels); apple_m1 for older chips
+binary = ""                              # a prebuilt tensorfold-native to serve with instead of the pinned build
+
+[local]
+host = "127.0.0.1"
+port = 8890
+tf_cache = "~/.cache/tensorfold-deepseek-v41"
+
+[serve]
+context = 65536                  # positions a stream holds (the model's window is 1,048,576; prompts run ~300 tok/s)
+drafts = true                    # the checkpoint's DSpark head (drafted replies equal plain ones)
+thinking = false                 # the template's thinking mode by default (a request can turn it on)
+max_tokens = 32768
+temperature = "0"
+parallel = 2                     # streams at once; they take turns (no forward shares rows yet)
+prompt_cache_gib = 6             # kept prompt states; past the engine's 70% share (the weights take 191 GiB)
+prompt_cache_over_cap = true
+vision = true                    # image input (image_url parts: data URLs; PNG and JPEG)
+vision_image_tokens = 4096       # image tokens a request may hold in all (an image takes at most 1,024)
+vision_max_images = 4
+keep_warm = 86400
+api_key = ""
+extra_args = ""
+memory_margin_gib = 6            # `up` refuses when free memory is under the weights plus this
