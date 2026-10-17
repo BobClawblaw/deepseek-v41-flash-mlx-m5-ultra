@@ -80,8 +80,6 @@ def main():
     p.add_argument("--max-new", type=int, default=64)
     p.add_argument("--threads", type=int, default=24)
     a = p.parse_args()
-    if a.mode == "compare":
-        a.out, a.ckpt = a.ckpt, None
     torch.set_num_threads(a.threads)
     os.makedirs(a.out, exist_ok=True)
     {"replies": replies, "logits": logits, "compare": compare}[a.mode](a)

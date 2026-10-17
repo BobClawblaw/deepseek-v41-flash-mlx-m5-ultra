@@ -86,5 +86,15 @@ top-1 agreement and logit error against the shipped fp4 weights).
 - Long context (1,500 tokens of README + code, real indexer selection past 512): next-token accuracy native 75.25%
   (chunks and decode alike) vs the reference's 75.12%; logit rel error flat 0.13-0.14 over positions. Layer 36's
   picks vs the reference fed the native streams: 99.5% mean overlap (min 97.9%), every row under 512 exact.
+- DSpark drafts (2026-10-17): drafted replies equal one-row ones (tf-dsv41-forward DS_DRAFT, 128/128 tokens on
+  chat, code, math, zh; and through the server: same reply hashes). Tokens a round (greedy chain of 5): code 4.27,
+  math 4.27, zh 2.67, chat 1.97. Load-timed windows 1/2/4/6 rows: 35.7/39.8/52.7/64.8 ms, a draft round 4.4 ms; the
+  lane core picks depths (speculate on). Through the server: code ~60 tok/s, chat ~38 tok/s (curl timings).
+- Tools: chat and thinking modes call get_weather with the right arguments and answer from the tool's result.
+- Prompt cache: a repeated 1,733-token prompt 8.7 s -> 1.0 s (1,536 cached), a follow-up turn 0.9 s; replies equal
+  with the cache on and off (same hashes). Budget is the 70% cap's leftover: 2.2 GiB at 8k context.
+- Requant study (teacher-forced on fp4 greedy replies, 4 prompts x 64 tokens): mean top-1 / KL vs fp4:
+  q2g64 0.894 / 0.289, q2g32 0.894 / 0.260, q3g64 0.940 / 0.120 (zh worst at every width). 3-bit everywhere does
+  not fit (~238 GB); a 2/3 mix of ~20 layers at 3-bit would (~208 GB); needs a layer-sensitivity pass.
 - Still to do for speed: prompt chunks on the tensor units (core/affine_mm), wo_a, fewer dispatches.
 - tools/yield.sh pauses the converter/study while another session runs a TensorFold engine or benchmark.
