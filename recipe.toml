@@ -30,7 +30,7 @@ tf_cache = "~/.cache/tensorfold-deepseek-v41"
 [serve]
 context = 65536                  # positions a stream holds (the model's window is 1,048,576; prompts run ~300 tok/s)
 drafts = true                    # the checkpoint's DSpark head (drafted replies equal plain ones)
-thinking = false                 # the template's thinking mode by default (a request can turn it on)
+thinking = true                  # the template's thinking mode by default (a request can turn it off)
 max_tokens = 32768
 temperature = "0"
 parallel = 2                     # streams at once; they take turns (no forward shares rows yet)
