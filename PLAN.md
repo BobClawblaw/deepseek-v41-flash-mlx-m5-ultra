@@ -140,3 +140,12 @@ top-1 agreement and logit error against the shipped fp4 weights).
   Through it: text, code, tools, JSON, images (carrots, corn), a repeated image cached, a mirrored image of the same
   size not taken from the cache.
 - tools/yield.sh pauses the converter/study while another session runs a TensorFold engine or benchmark.
+- Decode, second round (2026-10-17, long prompt, GPU ms a step): 17.7 -> 13.95. Wins, each bit-identical to the run
+  before it except the chunk size: attention in 16-key chunks read once into threadgroup memory (vector loads), 16
+  heads a threadgroup, the queries' RoPE as they load; the merge a thread a dim; fp8 rounding a lane a value; topk's
+  sums and scans parallel; the indexer's scores a lane a head. Serial loops inside small kernels were the cost.
+  Tried, no gain or slower (reverted): twin and wider-row dense kernels for windows, expert-sorted windows, fused
+  gate/up/SwiGLU, weight prefetch into cache, a split-k router gemv, 32 heads a threadgroup, per-simdgroup mix parts.
+  Checks: prompt chunks bit-identical to the previous commit; drafts equal plain 128/128; KL vs fp4 0.138, top-1 0.909.
+- Harness speed (run 20261017-193300, engine fcf9e0b4): ruler c=1 prose/code/structured/list 70.6/96.3/76.1/91.6
+  tok/s (was 57.7/90.5/69.5/93.1), c=2 76.6/94.7/77.0/117.6; turns cached 4541 of 4561, replies equal.
