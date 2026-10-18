@@ -149,3 +149,27 @@ top-1 agreement and logit error against the shipped fp4 weights).
   Checks: prompt chunks bit-identical to the previous commit; drafts equal plain 128/128; KL vs fp4 0.138, top-1 0.909.
 - Harness speed (run 20261017-193300, engine fcf9e0b4): ruler c=1 prose/code/structured/list 70.6/96.3/76.1/91.6
   tok/s (was 57.7/90.5/69.5/93.1), c=2 76.6/94.7/77.0/117.6; turns cached 4541 of 4561, replies equal.
+- Indexer at depth (2026-10-18, engine profile, 256-row chunk at 1.04M deep): the indexers after layer 20 score only
+  their candidate blocks (6f9b7a04: 2,765 -> 1,503 ms a chunk, 35.6 -> 27.8 ms a decode step); the full-context
+  scorer on 2-row by 16-key tiles (a7bbd088: 1,503 -> 1,132 ms, 27.8 -> 26.0 ms). Both bit-identical on four prompts
+  (24k in chunks of 256, tied scores, 18k in windows of 6, 17k a row at a time). Review pass 544b3a40: dead kernels
+  and fields out, stale comments fixed; same four prompts bit-identical.
+- Whole-model gate (ref/gate.py: model.py over this checkpoint's own codes in bf16, fp32 and fp64; gist
+  5e120cb3f7a7b3c9d7ca9b40ebea29f0): akol1's 8 tokens, floor NRMS(fp32, fp64) 4.22%; engine 8.08% vs fp64 (1.91 F),
+  the bf16 reference 9.67% (2.29 F), argmax 8/8. 268-token greedy reply replayed: engine = fp64 argmax at 252/268,
+  fp32 chain at 250/268 (disagreements at near-ties, fp64 margins 0.001-1.10); drafts equal plain 268/268.
+- Prompt attention on the tensor units (6f4617c9, GLM's sparse kernel adapted: window ring + picks, the sink):
+  attention 391 -> 22.5 ms a 256-row chunk; not bit-identical (sums order): 276-token sequence NRMS vs fp64
+  16.32% -> 16.16%, argmax 260 -> 263; chunks of 64 and 256 give identical logits.
+- Prompt chunks of 1024 rows (6a4d7be7; sweep 256/512/1024/2048 at depth 0: 819/1080/1270/1446 tok/s in the
+  profile, scratch 0.21/0.42/0.85/1.69 GiB). Served memory 202.4 GiB once loaded (+0.7).
+- Harness prefill (new plan `prefill`: one cold prompt each at 2k/8k/32k/128k, thinking off then on), tok/s:
+  544b3a40 384-412; 6f4617c9 887-1073; 6a4d7be7 1093-1392 (128k: 1195 off, 1210 on). Speed run on 6a4d7be7:
+  ruler c=1 67.5/87.5/77.6/94.4 (decode unchanged), turns resumed == cold, 4541 of 4561 cached, cold ttft 0.74 s.
+- 1M on 6a4d7be7 (2026-10-18, through the server, thinking off): the 1,007,409-token recall prompt in 1,783.5 s
+  (565 tok/s; was 6,726 s, 150 tok/s), passphrase right, at least 19.5 GiB free throughout; a follow-up turn
+  restored 1,007,407 cached tokens, first token 7.8 s, decoded 197 tokens at 46.3 tok/s (drafts on; one sample).
+- Thinking on by default (recipe.toml; a request turns it off with chat_template_kwargs.enable_thinking false).
+- Published: BobClawblaw/DeepSeek-V4.1-Flash-1017-TensorFold-e2e3-p4-h8 on the Hub (418 GB; the Engram tables in
+  three parts each, tools/split_engram.py, engine 39e5c50a reads them; logits identical to the whole tables).
+  The engine branch is not public yet; no harness quality suite run.
