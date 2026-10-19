@@ -193,8 +193,8 @@ top-1 agreement and logit error against the shipped fp4 weights).
   a request's max_tokens and the lanes stop the answer after `</think>` at the request's own max_tokens
   (Request.answer_max). Served checks: max_tokens 8 / 40 thinking on gave 2,095 reasoning + exactly 8 / 40 answer
   tokens; thinking off exactly 8 / 40; drafted == plain. The 10 thinking-on GSM8K misses at max_tokens 1024 all
-  finish now (779-12,881 tokens), 5 right. zig build test: test-cuda-host's runner steps fail here, and on the
-  unchanged parent too (their binaries pass alone, 26/26 and 30/30).
+  finish now (779-12,881 tokens), 5 right. zig build test passes (see the 2026-10-19 note on
+  its "failed command:" lines).
 - Shared rounds and chunked prompts (c4c69219; recipe parallel 4, context 524288 shared by the streams). forward.many
   runs up to four streams' windows (24 rows) on the row kernels; a lone prompt chunk keeps the tensor units. Lone
   logits byte-identical to 7837387a at chunks 1024/256/6/1; DS_SHARED=30: logits 420/420 rows, drafts 120/120.
@@ -236,4 +236,9 @@ top-1 agreement and logit error against the shipped fp4 weights).
   whole period and at least 1,024 tokens, found from where each 32-token run ended (long_loop.zig). GPQA 8 and 10:
   closed at periods 5,352 and 2,996 after 29,359 and 12,122 reasoning tokens, then answered C and A (gold D, D).
   Question 10 drafted == "draft": false (sha 1fd5b84a8c20). Seven GSM8K thinking replies unchanged with the guard.
+- zig build test (2026-10-19): it passes here, exit 0 with every step succeeded (ab93aeef: 292/292 steps, 3,037 of
+  3,044 tests, 7 skipped). Zig 0.17's build runner prints "failed command:" over any step that wrote to stderr, even
+  one that passed (lib/compiler/Maker.zig: "No matter the result, we want to display error/warning messages"). Our
+  tests log warnings, so those lines read as failures, and earlier notes and commit messages said test-cuda-host
+  steps, and later ten binaries, failed. None did. Read the Build Summary line and the exit code, not those lines.
 
