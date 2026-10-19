@@ -173,3 +173,6 @@ top-1 agreement and logit error against the shipped fp4 weights).
 - Published: BobClawblaw/DeepSeek-V4.1-Flash-1017-TensorFold-e2e3-p4-h8 on the Hub (418 GB; the Engram tables in
   three parts each, tools/split_engram.py, engine 39e5c50a reads them; logits identical to the whole tables).
   The engine branch is not public yet; no harness quality suite run.
+- 6a4d7be7 reworded to de6894db (same tree; the binaries differ only in the embedded commit, build paths, object
+  timestamps, UUID and signature). Harness runs 20261018-183907-prefill and -184411-speed and the 1M run were made on
+  6a4d7be7's build; local.toml and the harness target now pin de6894db.
