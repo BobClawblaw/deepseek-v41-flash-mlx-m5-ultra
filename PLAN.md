@@ -223,4 +223,9 @@ top-1 agreement and logit error against the shipped fp4 weights).
   about 82k tokens each, within the default context 524288. Two GPQA-Diamond questions (8 and 10 in the suite's order)
   had used all 36,864 tokens reasoning; asked again as the suite asks (greedy, max_tokens 4096) with the 48k reserve,
   both used all 53,248 and still gave no answer (202,637 and 226,826 characters of reasoning).
+- Tried and dropped (2026-10-19): the expert routing kernel (ds_route) as per-simdgroup picks and one merge, not six
+  passes with barriers (local branch fast-route). Skipping ds_route had taken a 1-row forward from 14.10 to 12.46 ms,
+  but the rewrite saved only 0.1 ms (14.07 -> 13.97 ms; 3 rows 23.72 -> 23.63 ms): with routing skipped the experts
+  read stale picks, so the skip measured more than routing. Other DS_SKIP numbers may overstate a part the same way;
+  time a rewrite before trusting them. A 1-row forward is GPU-bound: encode 0.4 ms of 14.7.
 
