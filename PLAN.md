@@ -219,4 +219,8 @@ top-1 agreement and logit error against the shipped fp4 weights).
   4.05) and 25.00 ms a 6-row call (16.53), each slot in its own mostly empty 32-row tile (384 experts, few slots
   share one). DS_SHARED with it also failed (SharedForwardDiffers): the many-expert gather as called is not batch
   invariant. Not pursued: the row kernels stay for decode, and four streams stay at 1.17-1.46x one.
+- Thinking reserve 32768 -> 49152 (2026-10-19, the recipe default): four thinking requests at max_tokens 32768 reserve
+  about 82k tokens each, within the default context 524288. Two GPQA-Diamond questions (8 and 10 in the suite's order)
+  had used all 36,864 tokens reasoning; asked again as the suite asks (greedy, max_tokens 4096) with the 48k reserve,
+  both used all 53,248 and still gave no answer (202,637 and 226,826 characters of reasoning).
 

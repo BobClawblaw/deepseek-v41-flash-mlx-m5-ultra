@@ -194,7 +194,7 @@ the same name in upper case.
 | `vision`, `vision_image_tokens`, `vision_max_images` | true, 4096, 4 | Image input and its limits |
 | `vision_urls` | false | Also fetch public HTTPS image URLs (data URLs work either way) |
 | `max_tokens`, `temperature` | 32768, 0 | A request's defaults |
-| `thinking_reserve` | 32768 | With thinking on, reasoning tokens a reply may use beyond its `max_tokens`, which then limits the answer after the reasoning |
+| `thinking_reserve` | 49152 | With thinking on, reasoning tokens a reply may use beyond its `max_tokens`, which then limits the answer after the reasoning |
 | `memory_margin_gib` | 6 | `up` refuses to start when free memory is under the weights plus this |
 
 **For the full window,** set `context = 1048576` (see `local.example.toml`). Measured at `parallel = 1`, the server
