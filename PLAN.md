@@ -176,3 +176,8 @@ top-1 agreement and logit error against the shipped fp4 weights).
 - 6a4d7be7 reworded to de6894db (same tree; the binaries differ only in the embedded commit, build paths, object
   timestamps, UUID and signature). Harness runs 20261018-183907-prefill and -184411-speed and the 1M run were made on
   6a4d7be7's build; local.toml and the harness target now pin de6894db.
+- Rebased onto origin/main 7d34f3dc (TensorFold 1.1.0, beta 8 app) as 55a9bfed: no conflicts; the logits are
+  identical to the pre-rebase build on four prompts (24k in chunks of 1024, tied scores in chunks of 256, 18k in
+  windows of 6, 17k a row at a time); test, kernel-contract, golden (306/319, 0 unexpected), fuzz-cortheon, flashnext
+  unit tests, fmt and lean (0 new on 503) pass; the Windows job not run. The prompt attention kernel lost its unused
+  pre-M5 branches (same logits). local.toml and the harness target pin 55a9bfed.
