@@ -104,27 +104,45 @@ Two notes on these checks:
     the top token right at 8 of 8.
   - **A 268-token greedy reply:** the engine's tokens are FP64's top token at 252 of 268 positions; FP32's agree at 250.
   - Details are on [#847](https://github.com/ashhart/TensorFold/issues/847#issuecomment-6256853391).
-- **The harness quality suite:** recipe-harness run `20261018-202801-dsv41-quality` on engine `269f2447`, served at
-  1M context, greedy. The suite is the [GLM-5.3 recipe's](https://github.com/BobClawblaw/glm53-flash-exl3-2x-dgx-sparks).
+- **The harness quality suite:** the [GLM-5.3 recipe's](https://github.com/BobClawblaw/glm53-flash-exl3-2x-dgx-sparks)
+  suite through recipe-harness, served at 1M context, greedy.
+  - **Thinking off:** run `20261018-202801-dsv41-quality`, engine `269f2447`.
+  - **Thinking on:** run `20261019-034805-dsv41-thinking`, engine `7837387a` with a 32,768-token reserve, two requests
+    at a time.
+  - A lone stream's logits are byte-identical on both engines and on `c4c69219`.
 
 | Check | Thinking off | Thinking on |
 |---|---|---|
-| GSM8K (first 250) | 247/250 (98.8%) | 237/250 (94.8%) |
-| MATH-500 | 457/500 (91.4%) | not run |
+| GSM8K (first 250) | 247/250 (98.8%) | 243/250 (97.2%) |
+| MATH-500, the suite's fixed grader | at least 465/500 | at least 469/500 |
+| MATH-500, as the runs graded it | 457/500 (91.4%) | 451/500 (90.2%) |
 | MGSM (8 languages, 30 each) | 217/240 (90.4%) | not run |
 | MMLU (342 questions) | 307/342 (89.8%) | not run |
 | IFEval (150 prompts) | 129/150 loose, 122/150 strict | not run |
 | Tools | 58/60 | not run |
 | Structured output | 30/30 | not run |
+| GPQA-Diamond | not run | not run |
 | The harness's thinking problems | — | 10/10, all with `reasoning_content` |
 
 Notes on the table:
-- **GSM8K with thinking on** was run before the thinking reserve: the suite's 1,024 tokens a reply held the reasoning
-  too, and 9 of its 10 misses ran out of tokens before the answer (one answered wrong). With the reserve on
-  `7837387a`, all 10 finish (779 to 12,881 tokens) and 5 of them are right; the harness suite has not been rerun.
+- **MATH-500's grader** rejected some correct answers: units after a number, `{,}` separators, set braces, lists in
+  another order, and (a bug) matrices written with spaces. It was fixed on 2026-10-19 (the suite's `277c842`), and
+  both runs were regraded from the answers they kept. Those runs kept only their first 40 misses, hence "at least".
+  Most of what is still marked wrong with thinking on is the same value written another way, plus four replies with
+  no boxed answer. With thinking off it is mostly wrong values plus 12 with no boxed answer. The details are in
+  [recipe-harness's README](https://github.com/BobClawblaw/recipe-harness#reading-quality-scores-the-graders-limits).
+- **GSM8K with thinking on** misses four problems that thinking off gets right. Each turns on ambiguous wording read
+  another way than the answer key. For example, it reads "two times older" as 1 + 2 x 1, and answers "how much more
+  likely, as a percentage" with the relative difference rather than percentage points. The other three misses are
+  the same in both modes.
+- **MATH-500 by level,** thinking off: L1 40/43, L2 87/90, L3 99/105, L4 119/128, L5 112/134. Thinking on: L1 41/43,
+  L2 79/90, L3 96/105, L4 113/128, L5 122/134 (both as the runs graded them).
+- **GPQA-Diamond was not run to the end.** With thinking on and greedy decoding, two of its first twenty questions
+  reason in a loop and never answer. Question 8 repeats the same passage about the molecule's symmetry from 38% of
+  the way in. Both used all 36,864 tokens of the 32k reserve and, asked again, all 53,248 of the 48k one. The engine's
+  loop guard catches only cycles of at most 8 tokens.
 - **Tools:** both misses are right calls with one optional argument more than the checker expects (an empty
   `folder`, a `label`).
-- **MATH-500 by level:** L1 40/43, L2 87/90, L3 99/105, L4 119/128, L5 112/134; 12 replies had no boxed answer.
 - **Behaviour and drafts:** streaming, multi-turn recall, stop strings, thinking split, exact copy, `max_tokens` and
   12 drafted-vs-plain replies all pass.
 - **IFEval with thinking on** is not in the table: the suite always sends IFEval with thinking off.

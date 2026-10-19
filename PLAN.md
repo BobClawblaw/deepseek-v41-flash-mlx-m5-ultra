@@ -228,4 +228,8 @@ top-1 agreement and logit error against the shipped fp4 weights).
   but the rewrite saved only 0.1 ms (14.07 -> 13.97 ms; 3 rows 23.72 -> 23.63 ms): with routing skipped the experts
   read stale picks, so the skip measured more than routing. Other DS_SKIP numbers may overstate a part the same way;
   time a rewrite before trusting them. A 1-row forward is GPU-bound: encode 0.4 ms of 14.7.
+- Harness quality, thinking on (run 20261019-034805-dsv41-thinking, 7837387a, 32k reserve): gsm8k 243/250 (237 before
+  the reserve), math500 451/500 as graded, at least 469 under the suite's fixed grader (at least 465 thinking off).
+  GSM8K's four extra thinking-on misses are ambiguous wording read another way. GPQA-Diamond not run to the end
+  (stopped 2026-10-19): two questions loop under greedy reasoning, past 36,864 and 53,248 tokens.
 
