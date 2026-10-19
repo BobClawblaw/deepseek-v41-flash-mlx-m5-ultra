@@ -1,14 +1,14 @@
-# The recipe's defaults. `local.toml` next to this file overrides them for this Mac (copy local.example.toml); an
+# The recipe's defaults. `local.toml` next to this file overrides them for one Mac (copy local.example.toml); an
 # environment variable of the same name in upper case overrides both (PORT=8890 python3 -m mac up).
 
 [model]
-# DeepSeek's release, converted on this Mac by tools/convert.py (no MLX checkpoint of V4.1 exists to download)
+# DeepSeek's release, converted by tools/convert.py (on the Hub as below, README)
 source_repo = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
 source_revision = "1bae0e1088993b9b82de08f59de5be5a34e42170"
 served_name = "DeepSeek-V4.1-Flash"
 # the converted checkpoint: routed experts 2-bit (groups of 64) but layers 10-29 at 3-bit (the requant study's pick),
 # the blocks' projections 4-bit (decode 21.2 -> 17.7 ms a step; KL vs fp4 0.136 -> 0.145, top-1 0.905 both), the head
-# and the vision tower 8-bit, the engram tables (189 GiB) beside it on disk, read where a lookup lands
+# and the vision tower 8-bit, the engram tables (189 GiB, three parts each) beside it on disk, read where a lookup lands
 model_dir = "~/models/DeepSeek-V4.1-Flash-1017-TF-mix23-d8b4"
 expert_bits = 2
 layer_bits = "10-29:3"
@@ -16,8 +16,8 @@ dense_bits = 8
 block_dense_bits = 4
 
 [engine]
-tensorfold_src = "~/github/TensorFold"   # a checkout holding the sha; `build` adds a worktree at it under tf_cache
-tensorfold_sha = ""                      # the deepseek-v41 branch's commit to build (local.toml pins it)
+tensorfold_src = "~/github/TensorFold"   # a checkout holding the sha (BobClawblaw/TensorFold); `build` adds a worktree
+tensorfold_sha = "269f24475f4efd8cf73e54316f7a8e0f3eb801b7"   # the deepseek-v41-main branch's commit to build
 zig = "~/tools/zig-aarch64-macos-0.17.0/zig"
 zig_cpu = "native"                       # this Mac's M5 (the tensor-unit prompt kernels); apple_m1 for older chips
 binary = ""                              # a prebuilt tensorfold-native to serve with instead of the pinned build
@@ -28,7 +28,7 @@ port = 8890
 tf_cache = "~/.cache/tensorfold-deepseek-v41"
 
 [serve]
-context = 65536                  # positions a stream holds (the model's window is 1,048,576; prompts run ~300 tok/s)
+context = 65536                  # positions a stream holds (the model's window is 1,048,576: README, long context)
 drafts = true                    # the checkpoint's DSpark head (drafted replies equal plain ones)
 thinking = true                  # the template's thinking mode by default (a request can turn it off)
 max_tokens = 32768

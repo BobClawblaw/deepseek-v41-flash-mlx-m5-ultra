@@ -6,3 +6,5 @@ logs/
 ref/encoding/tests/
 template/render_native
 work/
+x/
+ref/encoding/test_encoding.py

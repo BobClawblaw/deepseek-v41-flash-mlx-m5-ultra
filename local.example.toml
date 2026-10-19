@@ -1,0 +1,10 @@
+# This Mac's overrides of recipe.toml (copy to local.toml, which git ignores). Keys go in the same sections.
+
+[local]
+host = "127.0.0.1"               # 0.0.0.0 serves the LAN (set an api_key unless the LAN is trusted)
+port = 8890
+
+[serve]
+# the model's whole window, one stream: a 1,007,409-token prompt recalled correctly with at least 19.5 GiB free
+# context = 1048576
+# parallel = 1
