@@ -25,6 +25,10 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(a[a.index("--thinking-reserve") + 1], "49152")
         self.assertNotIn("--thinking-reserve", config.load(Path("/nonexistent"), env={"THINKING_RESERVE": "0"}).serve_args())
 
+    def test_loop_guard_is_on(self):
+        self.assertIn("--loop-guard", config.load(Path("/nonexistent"), env={}).serve_args())
+        self.assertNotIn("--loop-guard", config.load(Path("/nonexistent"), env={"LOOP_GUARD": "false"}).serve_args())
+
     def test_validate_bounds_parallel(self):
         s = config.load(Path("/nonexistent"), env={"PARALLEL": "9", "BINARY": "/x"})
         self.assertTrue(any("parallel" in p for p in config.validate(s)))

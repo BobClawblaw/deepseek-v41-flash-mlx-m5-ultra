@@ -232,4 +232,8 @@ top-1 agreement and logit error against the shipped fp4 weights).
   the reserve), math500 451/500 as graded, at least 469 under the suite's fixed grader (at least 465 thinking off).
   GSM8K's four extra thinking-on misses are ambiguous wording read another way. GPQA-Diamond not run to the end
   (stopped 2026-10-19): two questions loop under greedy reasoning, past 36,864 and 53,248 tokens.
+- Long-cycle loop guard (ab93aeef; recipe loop_guard = true): the reasoning closes when a passage repeats verbatim, a
+  whole period and at least 1,024 tokens, found from where each 32-token run ended (long_loop.zig). GPQA 8 and 10:
+  closed at periods 5,352 and 2,996 after 29,359 and 12,122 reasoning tokens, then answered C and A (gold D, D).
+  Question 10 drafted == "draft": false (sha 1fd5b84a8c20). Seven GSM8K thinking replies unchanged with the guard.
 

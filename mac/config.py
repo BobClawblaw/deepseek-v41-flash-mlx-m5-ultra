@@ -32,6 +32,7 @@ class Settings:
     thinking: bool = False
     max_tokens: int = 32768
     thinking_reserve: int = 0
+    loop_guard: bool = False
     temperature: str = "0"
     parallel: int = 4
     prompt_cache_gib: float = 6
@@ -98,6 +99,8 @@ class Settings:
         a.append("--thinking" if self.thinking else "--no-thinking")
         if self.thinking_reserve > 0:
             a += ["--thinking-reserve", str(self.thinking_reserve)]
+        if self.loop_guard:
+            a.append("--loop-guard")
         if not self.drafts:
             a.append("--no-drafts")
         if self.prompt_cache_gib >= 0:
