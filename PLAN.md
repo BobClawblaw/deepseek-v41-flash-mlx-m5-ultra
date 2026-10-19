@@ -202,3 +202,15 @@ top-1 agreement and logit error against the shipped fp4 weights).
   decode split 14.6 s / 14.6 s (Info.decode_share 0.5). Harness 20261019-090829-dsv41-speed, wall tok/s: 1 stream
   64.0/86.8/71.4/84.7, 4 streams 93.5/101.4/89.8/102.1. Next for throughput: one weight read per expert for all the
   rows that pick it, each row's arithmetic unchanged.
+- Tried and dropped (2026-10-19): routed experts grouped by expert for multi-row forwards (local branch
+  grouped-experts, not pushed). A core kernel sorted the slots by expert and read each expert's weights once for
+  blocks of 4, 2 and 1 of its slots, each slot's sums as the indexed kernel's: byte-equal at every width
+  (tf-row-check), lone logits byte-identical at chunks of 6 and 12, DS_SHARED 420/420 rows and 120/120 drafts. Rows
+  share experts (the last MoE layer: 1,272 distinct for 2,520 slots in DS_SHARED's 30 rounds), yet a shared round
+  took 95.3 ms against 91.1 ms, and a 6-row chunk's experts 17.28 against 16.51 ms. The experts cost grows with slots
+  (4.04 ms at one row, 16.51 at six) whatever is shared: on the row kernels each slot's multiply-adds are the cost,
+  not the weight reads. Only the tensor units would cut it, which changes a lone stream's bits against today's builds.
+- Also measured (2026-10-19): a tiled version of akol1's family's index scorer (#825), byte-equal to its kernel, is
+  1-6% slower on an idle GPU (256 rows at 520k keys: 1,344-1,351 against 1,318-1,319 ms). Earlier timings that showed
+  it faster ran beside a quality run. That indexer's time is its merge, one thread a row over every score.
+
