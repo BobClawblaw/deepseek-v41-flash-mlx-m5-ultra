@@ -5,7 +5,7 @@ DeepSeek-V4.1-Flash-1017 served on a single 256 GB Mac Studio (M5 Ultra) by Tens
 - **Context:** the full 1,048,576-token window.
 - **Features:** DSpark drafts, the prompt cache, images, tools and structured output.
 - **Checkpoint:** [`BobClawblaw/DeepSeek-V4.1-Flash-1017-TensorFold-e2e3-p4-h8`](https://huggingface.co/BobClawblaw/DeepSeek-V4.1-Flash-1017-TensorFold-e2e3-p4-h8), 418 GB.
-- **Engine:** the `deepseek-v41-main` branch of [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold/tree/deepseek-v41-main), pinned at `ab93aeef`.
+- **Engine:** the `deepseek-v41-main` branch of [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold/tree/deepseek-v41-main), pinned at `f8a3ce2f`.
 
 The engine is not part of upstream TensorFold. The DeepSeek family upstream is being coordinated on
 [ashhart/TensorFold#847](https://github.com/ashhart/TensorFold/issues/847).
@@ -18,7 +18,7 @@ Measured on one M5 Ultra (80-core GPU, 256 GB), macOS 27.0.1. Speed comes from
 - **Engine for these runs:** the harness and 1M runs used build `6a4d7be7`. That commit was later reworded and rebased
   onto TensorFold 1.1.0 as `269f2447`, with the same DeepSeek code.
 - **`7837387a`** adds the thinking reserve (below) to the server and the lanes; the forward is unchanged.
-- **`ab93aeef`** adds a guard for reasoning that repeats a long passage verbatim (below); replies that don't loop are
+- **`f8a3ce2f`** adds a guard for reasoning that repeats a long passage verbatim (below); replies that don't loop are
   unchanged.
 - **`c4c69219`** adds shared rounds for up to four streams and prompts a chunk between their rounds (Several streams,
   below). A lone stream's logits are byte-identical to `7837387a`'s on the same four prompts.
@@ -79,7 +79,7 @@ Each row below was checked through the server's chat API on engine `269f2447`, a
 | Greedy and sampled text | The ruler's prose, code, structured and list replies; the same seed at temperature 1 gives the same reply twice |
 | Thinking | On by default; `chat_template_kwargs: {"enable_thinking": false}` turns it off; the reasoning comes back in `reasoning_content` |
 | Thinking reserve | On `7837387a`, thinking on: with `max_tokens` 8 and 40, a 2,095-token reasoning was followed by answers of exactly 8 and 40 tokens; thinking off stopped at exactly 8 and 40; drafted equals `"draft": false` |
-| Loop guard | On `ab93aeef` with the 48k reserve: GPQA-Diamond questions 8 and 10, which had reasoned to the limit without answering, closed at repeated passages of 5,352 and 2,996 tokens and answered. Question 10 gives the same reply drafted and with `"draft": false` (sha `1fd5b84a8c20`). Seven GSM8K thinking replies are the same with the guard as without |
+| Loop guard | On `f8a3ce2f` with the 48k reserve: GPQA-Diamond questions 8 and 10, which had reasoned to the limit without answering, closed at repeated passages of 5,352 and 2,996 tokens and answered. Question 10 gives the same reply drafted and with `"draft": false` (sha `1fd5b84a8c20`). Seven GSM8K thinking replies are the same with the guard as without |
 | Long context | A passphrase planted 37% of the way into a 1,007,409-token prompt was recalled exactly |
 | Tools | A `get_weather` call comes back as `tool_calls` with the right arguments, with thinking on and with it off |
 | Structured output | A `json_schema` reply parses and fits its schema |
@@ -143,7 +143,7 @@ Notes on the table:
 - **GPQA-Diamond was not run to the end.** With thinking on and greedy decoding, two of its first twenty questions
   reasoned in a loop and never answered. Question 8 repeats the same passage about the molecule's symmetry from 38%
   of the way in. Both used all 36,864 tokens of the 32k reserve and, asked again, all 53,248 of the 48k one.
-  The loop guard on `ab93aeef` now closes such a loop, after which the model answers. Both questions then answered,
+  The loop guard on `f8a3ce2f` now closes such a loop, after which the model answers. Both questions then answered,
   wrongly.
 - **Tools:** both misses are right calls with one optional argument more than the checker expects (an empty
   `folder`, a `label`).

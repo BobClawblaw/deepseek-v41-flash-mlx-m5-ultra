@@ -232,13 +232,15 @@ top-1 agreement and logit error against the shipped fp4 weights).
   the reserve), math500 451/500 as graded, at least 469 under the suite's fixed grader (at least 465 thinking off).
   GSM8K's four extra thinking-on misses are ambiguous wording read another way. GPQA-Diamond not run to the end
   (stopped 2026-10-19): two questions loop under greedy reasoning, past 36,864 and 53,248 tokens.
-- Long-cycle loop guard (ab93aeef; recipe loop_guard = true): the reasoning closes when a passage repeats verbatim, a
+- Long-cycle loop guard (f8a3ce2f; recipe loop_guard = true): the reasoning closes when a passage repeats verbatim, a
   whole period and at least 1,024 tokens, found from where each 32-token run ended (long_loop.zig). GPQA 8 and 10:
   closed at periods 5,352 and 2,996 after 29,359 and 12,122 reasoning tokens, then answered C and A (gold D, D).
   Question 10 drafted == "draft": false (sha 1fd5b84a8c20). Seven GSM8K thinking replies unchanged with the guard.
-- zig build test (2026-10-19): it passes here, exit 0 with every step succeeded (ab93aeef: 292/292 steps, 3,037 of
+- zig build test (2026-10-19): it passes here, exit 0 with every step succeeded (f8a3ce2f: 292/292 steps, 3,037 of
   3,044 tests, 7 skipped). Zig 0.17's build runner prints "failed command:" over any step that wrote to stderr, even
   one that passed (lib/compiler/Maker.zig: "No matter the result, we want to display error/warning messages"). Our
   tests log warnings, so those lines read as failures, and earlier notes and commit messages said test-cuda-host
   steps, and later ten binaries, failed. None did. Read the Build Summary line and the exit code, not those lines.
+- The loop guard commit was reworded to f8a3ce2f (2026-10-19, the same tree): its message had said ten test binaries
+  fail under zig build test, the runner's "failed command:" lines misread. It was ab93aeef.
 
