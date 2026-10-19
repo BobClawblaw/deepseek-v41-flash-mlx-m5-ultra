@@ -213,4 +213,10 @@ top-1 agreement and logit error against the shipped fp4 weights).
 - Also measured (2026-10-19): a tiled version of akol1's family's index scorer (#825), byte-equal to its kernel, is
   1-6% slower on an idle GPU (256 rows at 520k keys: 1,344-1,351 against 1,318-1,319 ms). Earlier timings that showed
   it faster ran beside a quality run. That indexer's time is its merge, one thread a row over every score.
+- Tried and dropped (2026-10-19): every forward's routed experts on the tensor units' gathers (local branch
+  units-experts, DS_UNITS_EXPERTS). tf-affine-ref shows a one-expert gather gives each row the same bits in windows of
+  1 to 65 rows at every width, but at decode sizes it is slower: the experts took 8.48 ms a 1-row call (row kernels
+  4.05) and 25.00 ms a 6-row call (16.53), each slot in its own mostly empty 32-row tile (384 experts, few slots
+  share one). DS_SHARED with it also failed (SharedForwardDiffers): the many-expert gather as called is not batch
+  invariant. Not pursued: the row kernels stay for decode, and four streams stay at 1.17-1.46x one.
 
