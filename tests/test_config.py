@@ -20,6 +20,11 @@ class ConfigTest(unittest.TestCase):
         self.assertIn("--vision-urls", config.load(Path("/nonexistent"), env={"VISION_URLS": "true"}).serve_args())
         self.assertNotIn("--vision-urls", config.load(Path("/nonexistent"), env={"VISION_URLS": "true", "VISION": "false"}).serve_args())
 
+    def test_thinking_reserve_is_32k(self):
+        a = config.load(Path("/nonexistent"), env={}).serve_args()
+        self.assertEqual(a[a.index("--thinking-reserve") + 1], "32768")
+        self.assertNotIn("--thinking-reserve", config.load(Path("/nonexistent"), env={"THINKING_RESERVE": "0"}).serve_args())
+
     def test_validate_bounds_parallel(self):
         s = config.load(Path("/nonexistent"), env={"PARALLEL": "9", "BINARY": "/x"})
         self.assertTrue(any("parallel" in p for p in config.validate(s)))

@@ -189,3 +189,9 @@ top-1 agreement and logit error against the shipped fp4 weights).
   mmlu 307/342, math500 457/500 (12 without a boxed answer). Thinking on: the harness's problems 10/10, gsm8k
   237/250; re-asked, 9 of its 10 misses hit the suite's 1024-token cap mid-reasoning and one answered wrong. The
   suite's ifeval always sends thinking off (129/150 again).
+- Thinking reserve (7837387a; recipe `thinking_reserve = 32768`): with thinking on, the server adds 32,768 tokens to
+  a request's max_tokens and the lanes stop the answer after `</think>` at the request's own max_tokens
+  (Request.answer_max). Served checks: max_tokens 8 / 40 thinking on gave 2,095 reasoning + exactly 8 / 40 answer
+  tokens; thinking off exactly 8 / 40; drafted == plain. The 10 thinking-on GSM8K misses at max_tokens 1024 all
+  finish now (779-12,881 tokens), 5 right. zig build test: test-cuda-host's runner steps fail here, and on the
+  unchanged parent too (their binaries pass alone, 26/26 and 30/30).

@@ -31,6 +31,7 @@ class Settings:
     drafts: bool = True
     thinking: bool = False
     max_tokens: int = 32768
+    thinking_reserve: int = 0
     temperature: str = "0"
     parallel: int = 2
     prompt_cache_gib: float = 6
@@ -95,6 +96,8 @@ class Settings:
              "--context", str(self.context), "--max-tokens", str(self.max_tokens), "--temperature", self.temperature,
              "--parallel", str(self.parallel), "--keep-warm", str(self.keep_warm), "--no-update-check"]
         a.append("--thinking" if self.thinking else "--no-thinking")
+        if self.thinking_reserve > 0:
+            a += ["--thinking-reserve", str(self.thinking_reserve)]
         if not self.drafts:
             a.append("--no-drafts")
         if self.prompt_cache_gib >= 0:

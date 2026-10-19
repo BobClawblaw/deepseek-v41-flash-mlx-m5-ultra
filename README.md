@@ -5,7 +5,7 @@ DeepSeek-V4.1-Flash-1017 served on a single 256 GB Mac Studio (M5 Ultra) by Tens
 - **Context:** the full 1,048,576-token window.
 - **Features:** DSpark drafts, the prompt cache, images, tools and structured output.
 - **Checkpoint:** [`BobClawblaw/DeepSeek-V4.1-Flash-1017-TensorFold-e2e3-p4-h8`](https://huggingface.co/BobClawblaw/DeepSeek-V4.1-Flash-1017-TensorFold-e2e3-p4-h8), 418 GB.
-- **Engine:** the `deepseek-v41-main` branch of [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold/tree/deepseek-v41-main), pinned at `269f2447`.
+- **Engine:** the `deepseek-v41-main` branch of [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold/tree/deepseek-v41-main), pinned at `7837387a`.
 
 The engine is not part of upstream TensorFold. The DeepSeek family upstream is being coordinated on
 [ashhart/TensorFold#847](https://github.com/ashhart/TensorFold/issues/847).
@@ -17,6 +17,7 @@ Measured on one M5 Ultra (80-core GPU, 256 GB), macOS 27.0.1. Speed comes from
 
 - **Engine for these runs:** the harness and 1M runs used build `6a4d7be7`. That commit was later reworded and rebased
   onto TensorFold 1.1.0 as `269f2447`, with the same DeepSeek code.
+- **`7837387a`** adds the thinking reserve (below) to the server and the lanes; the forward is unchanged.
 - **The rebase was checked:** its logits are byte-identical to the pre-rebase build on four prompts (chunks of 1,024
   and of 256, draft windows of 6, one row at a time).
 
@@ -58,6 +59,7 @@ Each row below was checked through the server's chat API on engine `269f2447`, a
 |---|---|
 | Greedy and sampled text | The ruler's prose, code, structured and list replies; the same seed at temperature 1 gives the same reply twice |
 | Thinking | On by default; `chat_template_kwargs: {"enable_thinking": false}` turns it off; the reasoning comes back in `reasoning_content` |
+| Thinking reserve | On `7837387a`, thinking on: with `max_tokens` 8 and 40, a 2,095-token reasoning was followed by answers of exactly 8 and 40 tokens; thinking off stopped at exactly 8 and 40; drafted equals `"draft": false` |
 | Long context | A passphrase planted 37% of the way into a 1,007,409-token prompt was recalled exactly |
 | Tools | A `get_weather` call comes back as `tool_calls` with the right arguments, with thinking on and with it off |
 | Structured output | A `json_schema` reply parses and fits its schema |
@@ -100,8 +102,9 @@ Two notes on these checks:
 | The harness's thinking problems | — | 10/10, all with `reasoning_content` |
 
 Notes on the table:
-- **GSM8K with thinking on** is capped at 1,024 tokens a reply, reasoning included. Re-asked, 9 of its 10 misses
-  ran out of tokens before the answer, and one finished with a wrong answer.
+- **GSM8K with thinking on** was run before the thinking reserve: the suite's 1,024 tokens a reply held the reasoning
+  too, and 9 of its 10 misses ran out of tokens before the answer (one answered wrong). With the reserve on
+  `7837387a`, all 10 finish (779 to 12,881 tokens) and 5 of them are right; the harness suite has not been rerun.
 - **Tools:** both misses are right calls with one optional argument more than the checker expects (an empty
   `folder`, a `label`).
 - **MATH-500 by level:** L1 40/43, L2 87/90, L3 99/105, L4 119/128, L5 112/134; 12 replies had no boxed answer.
@@ -174,6 +177,7 @@ the same name in upper case.
 | `vision`, `vision_image_tokens`, `vision_max_images` | true, 4096, 4 | Image input and its limits |
 | `vision_urls` | false | Also fetch public HTTPS image URLs (data URLs work either way) |
 | `max_tokens`, `temperature` | 32768, 0 | A request's defaults |
+| `thinking_reserve` | 32768 | With thinking on, reasoning tokens a reply may use beyond its `max_tokens`, which then limits the answer after the reasoning |
 | `memory_margin_gib` | 6 | `up` refuses to start when free memory is under the weights plus this |
 
 **For the full window,** set `context = 1048576` and `parallel = 1` (see `local.example.toml`). Measured that way, the
