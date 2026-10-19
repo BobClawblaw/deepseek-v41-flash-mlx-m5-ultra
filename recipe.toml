@@ -39,6 +39,7 @@ prompt_cache_over_cap = true
 vision = true                    # image input (image_url parts: data URLs; PNG and JPEG)
 vision_image_tokens = 4096       # image tokens a request may hold in all (an image takes at most 1,024)
 vision_max_images = 4
+vision_urls = false              # also public HTTPS image URLs, fetched by the server (every address checked public)
 keep_warm = 86400
 api_key = ""
 extra_args = ""

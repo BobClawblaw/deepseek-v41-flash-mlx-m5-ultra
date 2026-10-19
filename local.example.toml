@@ -8,3 +8,4 @@ port = 8890
 # the model's whole window, one stream: a 1,007,409-token prompt recalled correctly with at least 19.5 GiB free
 # context = 1048576
 # parallel = 1
+# vision_urls = true             # also public HTTPS image URLs (the server checks every address is public)

@@ -38,6 +38,7 @@ class Settings:
     vision: bool = True
     vision_image_tokens: int = 4096
     vision_max_images: int = 4
+    vision_urls: bool = False
     keep_warm: int = 86400
     api_key: str = ""
     extra_args: str = ""
@@ -103,6 +104,8 @@ class Settings:
         if self.vision:
             a += ["--vision", "--vision-image-tokens", str(self.vision_image_tokens),
                   "--vision-max-images", str(self.vision_max_images)]
+            if self.vision_urls:
+                a.append("--vision-urls")
         if self.api_key:
             a += ["--api-key", self.api_key]
         a += self.extra_args.split()

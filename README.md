@@ -61,14 +61,17 @@ Each row below was checked through the server's chat API on engine `269f2447`, a
 | Long context | A passphrase planted 37% of the way into a 1,007,409-token prompt was recalled exactly |
 | Tools | A `get_weather` call comes back as `tool_calls` with the right arguments, with thinking on and with it off |
 | Structured output | A `json_schema` reply parses and fits its schema |
-| Images | A photo of carrots is answered "Carrot" |
+| Images | A pasted photo of carrots is answered "Carrot"; with `vision_urls` on, a public HTTPS image is described correctly, and loopback, LAN and plain-HTTP URLs are refused with a 400 |
 | Drafts | Drafted replies equal `"draft": false` replies (4 of 4); with the check program, a 268-token greedy reply drafted equals it plain |
 | Prompt cache | The harness `turns` check: a resumed third turn equals the same turn sent cold, with 4,541 of 4,561 tokens cached; a 1M conversation resumes in 7.8 s |
 | Concurrency | At `--parallel 2`, four requests sent two at a time each equal the same request alone |
 
 Two notes on these checks:
-- **Images:** data URLs only (`image_url` parts), PNG or JPEG. One image takes at most 1,024 tokens, a request at most
-  4,096 image tokens (`vision_image_tokens`), and at most 4 images (`vision_max_images`).
+- **Images:** `image_url` parts, pasted as data URLs (base64), PNG or JPEG. One image takes at most 1,024 tokens, a
+  request at most 4,096 image tokens (`vision_image_tokens`), and at most 4 images (`vision_max_images`).
+- **Image links:** `vision_urls = true` also lets the server fetch public HTTPS images. Every address and redirect must
+  be public, there are at most 3 redirects, and fetches time out after 10 s each and 30 s a request. It is off by
+  default, so a server on a LAN fetches nothing on its callers' behalf.
 - **Drafts with the check program:** that check ran on `544b3a40`, whose decode path the current engine keeps.
 
 ## Quality
@@ -147,6 +150,7 @@ the same name in upper case.
 | `thinking` | true | Thinking on unless a request turns it off |
 | `prompt_cache_gib` | 6 | Memory for kept prompt states, used past the engine's 70% share (`prompt_cache_over_cap`) |
 | `vision`, `vision_image_tokens`, `vision_max_images` | true, 4096, 4 | Image input and its limits |
+| `vision_urls` | false | Also fetch public HTTPS image URLs (data URLs work either way) |
 | `max_tokens`, `temperature` | 32768, 0 | A request's defaults |
 | `memory_margin_gib` | 6 | `up` refuses to start when free memory is under the weights plus this |
 

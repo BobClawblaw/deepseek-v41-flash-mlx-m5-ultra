@@ -15,6 +15,11 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(a[-1], str(s.model))
         self.assertIn("--prompt-cache-over-cap", a)
 
+    def test_vision_urls_is_opt_in(self):
+        self.assertNotIn("--vision-urls", config.load(Path("/nonexistent"), env={}).serve_args())
+        self.assertIn("--vision-urls", config.load(Path("/nonexistent"), env={"VISION_URLS": "true"}).serve_args())
+        self.assertNotIn("--vision-urls", config.load(Path("/nonexistent"), env={"VISION_URLS": "true", "VISION": "false"}).serve_args())
+
     def test_validate_bounds_parallel(self):
         s = config.load(Path("/nonexistent"), env={"PARALLEL": "9", "BINARY": "/x"})
         self.assertTrue(any("parallel" in p for p in config.validate(s)))
