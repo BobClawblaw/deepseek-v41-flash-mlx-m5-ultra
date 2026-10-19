@@ -5,7 +5,6 @@ host = "127.0.0.1"               # 0.0.0.0 serves the LAN (set an api_key unless
 port = 8890
 
 [serve]
-# the model's whole window, one stream: a 1,007,409-token prompt recalled correctly with at least 19.5 GiB free
+# the model's whole window, shared by the streams: a 1,007,409-token prompt recalled correctly with at least 19.5 GiB free
 # context = 1048576
-# parallel = 1
 # vision_urls = true             # also public HTTPS image URLs (the server checks every address is public)

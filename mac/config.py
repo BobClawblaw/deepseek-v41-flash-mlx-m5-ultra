@@ -27,13 +27,13 @@ class Settings:
     host: str = "127.0.0.1"
     port: int = 8890
     tf_cache: str = ""
-    context: int = 65536
+    context: int = 524288
     drafts: bool = True
     thinking: bool = False
     max_tokens: int = 32768
     thinking_reserve: int = 0
     temperature: str = "0"
-    parallel: int = 2
+    parallel: int = 4
     prompt_cache_gib: float = 6
     prompt_cache_over_cap: bool = True
     vision: bool = True
@@ -154,7 +154,7 @@ def validate(s: Settings) -> list[str]:
     if not (s.model / "engram" / "hash.safetensors").exists():
         out.append(f"{s.model} has no engram tables (engram/): convert again without --only")
     if s.parallel < 1 or s.parallel > 4:
-        out.append("parallel must be 1 to 4 (the engine's streams take turns)")
+        out.append("parallel must be 1 to 4 (a shared forward takes four streams at most)")
     if s.vision_image_tokens < 1 or s.vision_max_images < 1:
         out.append("vision_image_tokens and vision_max_images must be at least 1")
     return out

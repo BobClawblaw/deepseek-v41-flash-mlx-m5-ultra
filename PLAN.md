@@ -101,7 +101,7 @@ top-1 agreement and logit error against the shipped fp4 weights).
 - Vision: preparation bit-exact with image_processor.py (both example images); the tower+aligner vs a reference with
   the same 8-bit codes: most rows cos 0.999-1.000, a few outliers 0.89-0.98; carrots/corn described correctly
   through the server; template 36/36 (image fixture included).
-- Streams take turns (--parallel up to 4): two at once reply as alone.
+- Streams (--parallel up to 4): shared forwards since c4c69219 (below); before that they took turns.
 - Recipe: python3 -m mac (up/down/status/logs/build/convert/command/chat/validate/launchd), tests.
 - Harness (recipe-harness target deepseek-v41-m5, plan speed, run 20261017-145733): ruler c=1 prose/code/structured/
   list 41.1/56.7/48.4/62.2 tok/s, ttft 0.15-0.22 s; c=2 aggregate 42.7/58.3/49.4/78.5; turns: 4541/4561 cached,
@@ -195,3 +195,10 @@ top-1 agreement and logit error against the shipped fp4 weights).
   tokens; thinking off exactly 8 / 40; drafted == plain. The 10 thinking-on GSM8K misses at max_tokens 1024 all
   finish now (779-12,881 tokens), 5 right. zig build test: test-cuda-host's runner steps fail here, and on the
   unchanged parent too (their binaries pass alone, 26/26 and 30/30).
+- Shared rounds and chunked prompts (c4c69219; recipe parallel 4, context 524288 shared by the streams). forward.many
+  runs up to four streams' windows (24 rows) on the row kernels; a lone prompt chunk keeps the tensor units. Lone
+  logits byte-identical to 7837387a at chunks 1024/256/6/1; DS_SHARED=30: logits 420/420 rows, drafts 120/120.
+  Served: four concurrent replies equal alone, a reply during a 60k-token prompt equals alone, prompt chunks and
+  decode split 14.6 s / 14.6 s (Info.decode_share 0.5). Harness 20261019-090829-dsv41-speed, wall tok/s: 1 stream
+  64.0/86.8/71.4/84.7, 4 streams 93.5/101.4/89.8/102.1. Next for throughput: one weight read per expert for all the
+  rows that pick it, each row's arithmetic unchanged.

@@ -5,7 +5,7 @@ DeepSeek-V4.1-Flash-1017 served on a single 256 GB Mac Studio (M5 Ultra) by Tens
 - **Context:** the full 1,048,576-token window.
 - **Features:** DSpark drafts, the prompt cache, images, tools and structured output.
 - **Checkpoint:** [`BobClawblaw/DeepSeek-V4.1-Flash-1017-TensorFold-e2e3-p4-h8`](https://huggingface.co/BobClawblaw/DeepSeek-V4.1-Flash-1017-TensorFold-e2e3-p4-h8), 418 GB.
-- **Engine:** the `deepseek-v41-main` branch of [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold/tree/deepseek-v41-main), pinned at `7837387a`.
+- **Engine:** the `deepseek-v41-main` branch of [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold/tree/deepseek-v41-main), pinned at `c4c69219`.
 
 The engine is not part of upstream TensorFold. The DeepSeek family upstream is being coordinated on
 [ashhart/TensorFold#847](https://github.com/ashhart/TensorFold/issues/847).
@@ -18,6 +18,8 @@ Measured on one M5 Ultra (80-core GPU, 256 GB), macOS 27.0.1. Speed comes from
 - **Engine for these runs:** the harness and 1M runs used build `6a4d7be7`. That commit was later reworded and rebased
   onto TensorFold 1.1.0 as `269f2447`, with the same DeepSeek code.
 - **`7837387a`** adds the thinking reserve (below) to the server and the lanes; the forward is unchanged.
+- **`c4c69219`** adds shared rounds for up to four streams and prompts a chunk between their rounds (Several streams,
+  below). A lone stream's logits are byte-identical to `7837387a`'s on the same four prompts.
 - **The rebase was checked:** its logits are byte-identical to the pre-rebase build on four prompts (chunks of 1,024
   and of 256, draft windows of 6, one row at a time).
 
@@ -46,10 +48,25 @@ on, the first reasoning token).
 
 A 1,007,409-token prompt took 1,783.5 s (565 tok/s on average) through the server.
 
-### Two streams
+### Several streams
 
-Streams take turns: the engine runs one stream's chunk or decode round at a time, so two streams together decode at
-about the speed of one. Batching them into shared rounds is not done yet.
+Up to four streams decode together: their windows go through one forward, each stream's attention on its own rows.
+Every shared forward uses the row kernels a stream uses alone, so each reply is the same as it would be alone. Each
+row still reads its own routed experts, which limits the gain. Measured with the recipe harness (run
+`20261019-090829-dsv41-speed`, engine `c4c69219`, 256-token replies), in tok/s summed over the streams by wall clock:
+
+| Streams | Prose | Code | Structured | List | First token |
+|---|---|---|---|---|---|
+| 1 | 64.0 | 86.8 | 71.4 | 84.7 | 0.11-0.14 s |
+| 2 | 82.1 | 94.7 | 79.3 | 98.8 | 0.22-0.28 s |
+| 4 | 93.5 | 101.4 | 89.8 | 102.1 | 0.45-0.58 s |
+
+A new prompt goes in 1,024 tokens at a time, with the other streams decoding between chunks for half the time. For
+example, a 60k-token prompt took 54.2 s while another reply decoded, against 43.0 s alone. During it, 18 chunks took
+14.6 s and the reply decoded in the 14.6 s between them.
+
+The streams share `context`: each holds its prompt plus its `max_tokens` (and, with thinking on, the reserve). A
+request that would pass it waits until a stream ends, and the requests queued behind it wait in order.
 
 ## What works, and how it was checked
 
@@ -66,7 +83,7 @@ Each row below was checked through the server's chat API on engine `269f2447`, a
 | Images | A pasted photo of carrots is answered "Carrot"; with `vision_urls` on, a public HTTPS image is described correctly, and loopback, LAN and plain-HTTP URLs are refused with a 400 |
 | Drafts | Drafted replies equal `"draft": false` replies (4 of 4); with the check program, a 268-token greedy reply drafted equals it plain |
 | Prompt cache | The harness `turns` check: a resumed third turn equals the same turn sent cold, with 4,541 of 4,561 tokens cached; a 1M conversation resumes in 7.8 s |
-| Concurrency | At `--parallel 2`, four requests sent two at a time each equal the same request alone |
+| Concurrency | On `c4c69219` at `--parallel 4`: four requests at once (one sampled with a seed) each equal the same request alone; a reply decoding while a 60k-token prompt went in equals it alone; with `context` 20,000, a second ~12k-token request waited for the first and both finished |
 
 Two notes on these checks:
 - **Images:** `image_url` parts, pasted as data URLs (base64), PNG or JPEG. One image takes at most 1,024 tokens, a
@@ -169,8 +186,8 @@ the same name in upper case.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `context` | 65536 | Positions a stream holds; the model's window is 1,048,576 |
-| `parallel` | 2 | Streams at once; they take turns |
+| `context` | 524288 | Positions the streams hold together; the model's window is 1,048,576 |
+| `parallel` | 4 | Streams at once, their windows in one forward |
 | `drafts` | true | The checkpoint's DSpark head drafts; replies equal undrafted ones |
 | `thinking` | true | Thinking on unless a request turns it off |
 | `prompt_cache_gib` | 6 | Memory for kept prompt states, used past the engine's 70% share (`prompt_cache_over_cap`) |
@@ -180,12 +197,13 @@ the same name in upper case.
 | `thinking_reserve` | 32768 | With thinking on, reasoning tokens a reply may use beyond its `max_tokens`, which then limits the answer after the reasoning |
 | `memory_margin_gib` | 6 | `up` refuses to start when free memory is under the weights plus this |
 
-**For the full window,** set `context = 1048576` and `parallel = 1` (see `local.example.toml`). Measured that way, the
-server held 202.4 GiB once loaded. At least 19.5 GiB stayed free through a 1,007,409-token prompt.
+**For the full window,** set `context = 1048576` (see `local.example.toml`). Measured at `parallel = 1`, the server
+held 202.4 GiB once loaded, and at least 19.5 GiB stayed free through a 1,007,409-token prompt. Since the streams share
+`context`, more streams don't raise that peak.
 
 ## Known limits
 
-- **Streams take turns.** Two streams together are about as fast as one.
+- **Four streams give 1.17-1.46x one stream's throughput,** not 4x. Each row reads its own routed experts.
 - **The leaderboard benchmark doesn't complete yet.** TensorFold's community-v1 `code` prompt is a raw completion with
   no template. At temperature 1 this checkpoint sometimes ends it early, so the receipt is incomplete and is not
   published ([ashhart/TensorFold#1019](https://github.com/ashhart/TensorFold/issues/1019)).

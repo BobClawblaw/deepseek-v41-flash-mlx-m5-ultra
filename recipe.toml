@@ -17,7 +17,7 @@ block_dense_bits = 4
 
 [engine]
 tensorfold_src = "~/github/TensorFold"   # a checkout holding the sha (BobClawblaw/TensorFold); `build` adds a worktree
-tensorfold_sha = "7837387ad6f26b5e7cec7eb52f7e8a590dce898d"   # the deepseek-v41-main branch's commit to build
+tensorfold_sha = "c4c692195cd01ea6e92b63811cd07286d4524c8d"   # the deepseek-v41-main branch's commit to build
 zig = "~/tools/zig-aarch64-macos-0.17.0/zig"
 zig_cpu = "native"                       # this Mac's M5 (the tensor-unit prompt kernels); apple_m1 for older chips
 binary = ""                              # a prebuilt tensorfold-native to serve with instead of the pinned build
@@ -28,13 +28,13 @@ port = 8890
 tf_cache = "~/.cache/tensorfold-deepseek-v41"
 
 [serve]
-context = 65536                  # positions a stream holds (the model's window is 1,048,576: README, long context)
+context = 524288                 # positions the streams hold together (the model's window is 1,048,576: README)
 drafts = true                    # the checkpoint's DSpark head (drafted replies equal plain ones)
 thinking = true                  # the template's thinking mode by default (a request can turn it off)
 max_tokens = 32768
 thinking_reserve = 32768         # with thinking on, reasoning tokens beyond a request's max_tokens, which then limits the answer
 temperature = "0"
-parallel = 2                     # streams at once; they take turns (no forward shares rows yet)
+parallel = 4                     # streams at once: their windows share forwards, their caches `context`
 prompt_cache_gib = 6             # kept prompt states; past the engine's 70% share (the weights take ~200 GiB)
 prompt_cache_over_cap = true
 vision = true                    # image input (image_url parts: data URLs; PNG and JPEG)
