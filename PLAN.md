@@ -181,3 +181,5 @@ top-1 agreement and logit error against the shipped fp4 weights).
   windows of 6, 17k a row at a time); test, kernel-contract, golden (306/319, 0 unexpected), fuzz-cortheon, flashnext
   unit tests, fmt and lean (0 new on 503) pass; the Windows job not run. The prompt attention kernel lost its unused
   pre-M5 branches (same logits). local.toml and the harness target pin 55a9bfed.
+- Pushed: the engine branch to BobClawblaw/TensorFold deepseek-v41-main at 269f2447 (55a9bfed rebased onto a
+  docs-only main commit, the same code); local.toml and the harness target pin it.
