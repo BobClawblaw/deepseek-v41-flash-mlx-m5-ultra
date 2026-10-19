@@ -170,3 +170,8 @@ server held 202.4 GiB once loaded. At least 19.5 GiB stayed free through a 1,007
 | `tools/` | The converter, the Engram split, the KL check against the fp4 release |
 | `ref/` | A CPU reference: DeepSeek's `model.py` and `engram.py` (MIT, `LICENSE.deepseek`), torch kernels, the loader, the whole-model gate |
 | `PLAN.md` | The work log, with how each number was measured |
+
+## License
+
+MIT (`LICENSE`). DeepSeek's `model.py`, `engram.py`, `image_processor.py` and the encoding under `ref/` keep their own
+MIT license and copyright (`ref/LICENSE.deepseek`).
