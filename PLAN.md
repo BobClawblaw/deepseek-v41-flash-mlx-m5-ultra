@@ -183,3 +183,9 @@ top-1 agreement and logit error against the shipped fp4 weights).
   pre-M5 branches (same logits). local.toml and the harness target pin 55a9bfed.
 - Pushed: the engine branch to BobClawblaw/TensorFold deepseek-v41-main at 269f2447 (55a9bfed rebased onto a
   docs-only main commit, the same code); local.toml and the harness target pin it.
+- Harness quality on 269f2447 (run 20261018-202801-dsv41-quality, 2026-10-18, the served build at 1M context and
+  parallel 1, GLM recipe's quality suite). Thinking off: drafts 12/12, behaviour all pass, tools 58/60 (an empty
+  optional `folder`, an extra `label`), json 30/30, ifeval 129/150 loose (122 strict), gsm8k 247/250, mgsm 217/240,
+  mmlu 307/342, math500 457/500 (12 without a boxed answer). Thinking on: the harness's problems 10/10, gsm8k
+  237/250; re-asked, 9 of its 10 misses hit the suite's 1024-token cap mid-reasoning and one answered wrong. The
+  suite's ifeval always sends thinking off (129/150 again).

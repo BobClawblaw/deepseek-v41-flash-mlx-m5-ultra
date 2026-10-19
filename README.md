@@ -85,7 +85,29 @@ Two notes on these checks:
     the top token right at 8 of 8.
   - **A 268-token greedy reply:** the engine's tokens are FP64's top token at 252 of 268 positions; FP32's agree at 250.
   - Details are on [#847](https://github.com/ashhart/TensorFold/issues/847#issuecomment-6256853391).
-- **Not run:** the harness quality suite, with thinking on or off.
+- **The harness quality suite:** recipe-harness run `20261018-202801-dsv41-quality` on engine `269f2447`, served at
+  1M context, greedy. The suite is the [GLM-5.3 recipe's](https://github.com/BobClawblaw/glm53-flash-exl3-2x-dgx-sparks).
+
+| Check | Thinking off | Thinking on |
+|---|---|---|
+| GSM8K (first 250) | 247/250 (98.8%) | 237/250 (94.8%) |
+| MATH-500 | 457/500 (91.4%) | not run |
+| MGSM (8 languages, 30 each) | 217/240 (90.4%) | not run |
+| MMLU (342 questions) | 307/342 (89.8%) | not run |
+| IFEval (150 prompts) | 129/150 loose, 122/150 strict | not run |
+| Tools | 58/60 | not run |
+| Structured output | 30/30 | not run |
+| The harness's thinking problems | — | 10/10, all with `reasoning_content` |
+
+Notes on the table:
+- **GSM8K with thinking on** is capped at 1,024 tokens a reply, reasoning included. Re-asked, 9 of its 10 misses
+  ran out of tokens before the answer, and one finished with a wrong answer.
+- **Tools:** both misses are right calls with one optional argument more than the checker expects (an empty
+  `folder`, a `label`).
+- **MATH-500 by level:** L1 40/43, L2 87/90, L3 99/105, L4 119/128, L5 112/134; 12 replies had no boxed answer.
+- **Behaviour and drafts:** streaming, multi-turn recall, stop strings, thinking split, exact copy, `max_tokens` and
+  12 drafted-vs-plain replies all pass.
+- **IFEval with thinking on** is not in the table: the suite always sends IFEval with thinking off.
 
 ## Requirements
 
