@@ -5,7 +5,7 @@ DeepSeek-V4.1-Flash-1017 served on a single 256 GB Mac Studio (M5 Ultra) by Tens
 - **Context:** the full 1,048,576-token window.
 - **Features:** DSpark drafts, the prompt cache, images, tools and structured output.
 - **Checkpoint:** [`BobClawblaw/DeepSeek-V4.1-Flash-1017-TensorFold-e2e3-p4-h8`](https://huggingface.co/BobClawblaw/DeepSeek-V4.1-Flash-1017-TensorFold-e2e3-p4-h8), 418 GB.
-- **Engine:** the `deepseek-v41-main` branch of [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold/tree/deepseek-v41-main), pinned at `c14c1848`.
+- **Engine:** the `deepseek-v41-main` branch of [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold/tree/deepseek-v41-main), pinned at `8557236a`.
 
 The engine is not part of upstream TensorFold. The DeepSeek family upstream is being coordinated on
 [ashhart/TensorFold#847](https://github.com/ashhart/TensorFold/issues/847).
@@ -35,33 +35,46 @@ Measured on one M5 Ultra (80-core GPU, 256 GB), macOS 27.0.1. Speed comes from
   request without a `seed` draws its own (the completion line records it; a given `seed` still repeats), `--api-key`
   and `--api-key-file`, and Host and Origin checks that apply only to a loopback bind, so the recipe's `0.0.0.0`
   listener answers the LAN as before. The served build reports version 1.1.1.
+- **`8557236a`** puts a window's dense projections (the attention projections, the shared expert, the head; rows under
+  16) on the core's 8-row simdgroup-matrix tiles, with the core's scalar twin at 1 and 2 rows. The row kernel read a
+  weight once a pair of rows and grew with the window: 1.9 ms of attention projections a step at one row, 4.7 at six;
+  the tiles read it once and stay flat. The server's measured window costs went from 14.8 / 19.7 / 29.5 / 39.4 ms at
+  1 / 2 / 4 / 6 rows to 15.1 / 19.8 / 27.1 / 33.9, and four streams' shared rounds from 54.5 / 91.9 / 131.3 ms at
+  8 / 16 / 24 rows to 45.2 / 73.3 / 106.2, so the depth policy drafts deeper (Decode and Several streams, below).
+  A prompt chunk keeps the tensor units, so prompt logits are bit-identical to `c14c1848`; a window's logits change
+  with the tiles' reduction order, the same at every window width (a 6-row window equals one row at a time on 8,192
+  rows, drafted equals plain on 64 of 64 tokens, four shared streams equal each alone on 108 of 108 rows). The twin
+  is checked against the tiles at load on the first layer's dense shapes and the head; a difference would keep the
+  row kernels. Against the study's fp4 replies (`tools/native_kl.py`, 190 teacher-forced tokens over three prompts) the tiles give
+  KL 0.167 and top-1 0.889, the row kernels 0.164 and 0.893 (code 0.065 / 0.969 against 0.063 / 0.953, math 0.128 /
+  0.859 against 0.134 / 0.859, zh 0.333 / 0.823 against 0.320 / 0.855).
 
 ### Decode, one stream
 
-Harness speed plan, run `20261020-082555-dsv41-speed` on `c14c1848`. Drafts on, thinking off, greedy, short prompts.
+Harness speed plan, run `20261020-091934-dsv41-speed` on `8557236a`. Drafts on, thinking off, greedy, short prompts.
 
 | Prose | Code | Structured | List | First token |
 |---|---|---|---|---|
-| 68.8 tok/s | 87.7 tok/s | 82.1 tok/s | 94.5 tok/s | 0.10–0.14 s |
+| 70.7 tok/s | 104.9 tok/s | 87.6 tok/s | 103.8 tok/s | 0.10–0.14 s |
 
 At 1M deep, a follow-up turn on a 1,007,442-token conversation decoded 197 tokens at 46.3 tok/s, drafts on. That
 is one sample from a script, not the harness.
 
 ### Prompts, cold
 
-Harness prefill plan, run `20261020-082113-prefill` on `c14c1848`. One fresh prompt per size, timed to the first token
+Harness prefill plan, run `20261020-091454-prefill` on `8557236a`. One fresh prompt per size, timed to the first token
 (with thinking on, the first reasoning token).
 
 | Prompt tokens | Thinking off | Thinking on |
 |---|---|---|
-| ~2k | 1,213 tok/s | 1,359 tok/s |
-| ~8k | 1,444 tok/s | 1,442 tok/s |
-| ~33k | 1,418 tok/s | 1,422 tok/s |
-| ~131k | 1,372 tok/s | 1,370 tok/s |
+| ~2k | 1,222 tok/s | 1,366 tok/s |
+| ~8k | 1,451 tok/s | 1,445 tok/s |
+| ~33k | 1,422 tok/s | 1,424 tok/s |
+| ~131k | 1,380 tok/s | 1,378 tok/s |
 
 On `6a4d7be7` (run `20261018-183907-prefill`) these were 1,093 / 1,240 / 1,256 / 1,195 tok/s thinking off, and a
 1,007,409-token prompt took 1,783.5 s (565 tok/s on average) through the server. That 1M prompt has not been re-sent on
-`c14c1848`; in the engine's depth profile (`tf-dsv41-forward DS_DEPTH`, a lone 3,968-row chunk) the chunk at 1M depth
+`8557236a`; in the engine's depth profile (`tf-dsv41-forward DS_DEPTH`, a lone 3,968-row chunk) the chunk at 1M depth
 went from 402 to 854 tok/s, at 524k from 604 to 1,132.
 
 ### Several streams
@@ -69,13 +82,15 @@ went from 402 to 854 tok/s, at 524k from 604 to 1,132.
 Up to four streams decode together: their windows go through one forward, each stream's attention on its own rows.
 Every shared forward uses the row kernels a stream uses alone, so each reply is the same as it would be alone. Each
 row still reads its own routed experts, which limits the gain. Measured with the recipe harness (run
-`20261020-082555-dsv41-speed`, engine `c14c1848`, 256-token replies), in tok/s summed over the streams by wall clock:
+`20261020-091934-dsv41-speed`, engine `8557236a`, 256-token replies), in tok/s summed over the streams by wall clock:
 
 | Streams | Prose | Code | Structured | List | First token |
 |---|---|---|---|---|---|
-| 1 | 68.8 | 87.7 | 82.1 | 94.5 | 0.10-0.14 s |
-| 2 | 87.2 | 105.0 | 97.7 | 116.5 | 0.21-0.28 s |
-| 4 | 107.1 | 119.3 | 115.5 | 122.1 | 0.43-0.57 s |
+| 1 | 70.7 | 104.9 | 87.6 | 103.8 | 0.10-0.14 s |
+| 2 | 96.6 | 111.6 | 106.9 | 150.4 | 0.21-0.29 s |
+| 4 | 126.8 | 138.5 | 132.5 | 146.4 | 0.43-0.58 s |
+
+On `c14c1848`, with the row kernels, one stream gave 68.8 / 87.7 / 82.1 / 94.5 and four 107.1 / 119.3 / 115.5 / 122.1.
 
 On `c4c69219` (run `20261019-090829-dsv41-speed`) four streams gave 93.5 / 101.4 / 89.8 / 102.1.
 
@@ -88,7 +103,7 @@ request that would pass it waits until a stream ends, and the requests queued be
 
 ## What works, and how it was checked
 
-Each row below was checked through the server's chat API on engine `269f2447`, apart from the harness checks, the 1M run and the check program noted, which ran on the same code before the rebase. On `c14c1848` a spot check through the served API passed: a repeated `seed` at temperature 1 repeats its reply and no seed draws fresh ones, thinking on and off, a `get_weather` call, a `json_schema` reply, a data-URL image, a drafted reply equal to its plain one, and a LAN `Host` header.
+Each row below was checked through the server's chat API on engine `269f2447`, apart from the harness checks, the 1M run and the check program noted, which ran on the same code before the rebase. On `c14c1848` and again on `8557236a` a spot check through the served API passed: a repeated `seed` at temperature 1 repeats its reply and no seed draws fresh ones, thinking on and off, a `get_weather` call, a `json_schema` reply, a data-URL image, a drafted reply equal to its plain one, and a LAN `Host` header.
 
 | Feature | Check |
 |---|---|
@@ -129,7 +144,8 @@ Two notes on these checks:
     changes only a stream's release). The 2026-10-18 run on `269f2447` is kept in the notes for comparison.
   - **Thinking on:** run `20261019-034805-dsv41-thinking`, engine `7837387a` with a 32,768-token reserve, two requests
     at a time.
-  - A lone stream's logits are byte-identical on all of these engines, on `c4c69219` and on `c14c1848`.
+  - A lone stream's logits are byte-identical on all of these engines, on `c4c69219` and on `c14c1848`. On
+    `8557236a` a prompt's logits are the same and a window's differ (the tiles, above); the suite was not re-run on it.
 
 | Check | Thinking off | Thinking on |
 |---|---|---|
@@ -251,7 +267,7 @@ held 202.4 GiB once loaded, and at least 19.5 GiB stayed free through a 1,007,40
 
 ## Known limits
 
-- **Four streams give 1.17-1.46x one stream's throughput,** not 4x. Each row reads its own routed experts.
+- **Four streams give 1.3-1.8x one stream's throughput,** not 4x. Each row reads its own routed experts.
 - **No leaderboard entry yet.** TensorFold's community-v1 `code` prompt is a raw completion with no template, and at
   temperature 1 this checkpoint ends it early on three of the five fixed seeds (after 50, 34 and 196 tokens), so a v1
   receipt is incomplete and the harness publishes nothing

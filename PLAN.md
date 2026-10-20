@@ -297,3 +297,36 @@ top-1 agreement and logit error against the shipped fp4 weights).
     Sampled requests without a seed draw a fresh one (two no-seed replies differed; seed 7 twice gave the same reply).
   - Spot checks through the LaunchAgent (c14c1848): thinking on/off, tool call, json_schema, data-URL image, drafted
     equals plain, LAN Host: pass. Quality suite not re-run on c14c1848 (the forward is unchanged and bit-identical).
+
+- Decode windows (2026-10-20, engine 8557236a): why drafting paid so little, and the fix.
+  - The server's logs: thinking-off replies proposed 0.87 drafts a round at 82-88% acceptance; the depth policy chooses
+    by tokens a ms from the measured window costs (1 row 14.8 ms, 2 19.7, 4 29.5, 6 39.4: 4.9 ms a row, a third of a
+    plain step), so it rarely drafted. Mia's two-Spark recipe (BertholomusAI's CUDA family) runs rounds of 16 rows.
+  - Window profile (tf-dsv41-forward DS_DEPTH=256,8192 DS_PROFILE, GPU ms, the same at both depths): 1 row 22.6, 2 30.9,
+    4 36.1, 6 45.4. Growth 1 -> 6 rows: experts +12.9 (56%), attn proj + attn out +6.2 (27%), attend +2.8, route +1.5;
+    compress+index, boundaries, shared, engram and head flat. (Profiling serialises the sections: the server's own
+    plain step is 14.8 ms.) Experts at 6 rows read ~15.9 GB in 16.9 ms (~940 GB/s): near the bandwidth floor.
+  - A wide row kernel (batches of 6, 4, 2, 1 rows a weight read; bit-identical to the plain kernel in tf-row-check and
+    on the model) was slower: attn proj 4.7 -> 11.4 ms at 6 rows, the server's 6-row window 39.4 -> 59.0 ms. A bench
+    streaming 40 weight sets a command buffer (tf-row-check ROW_BENCH, kept out of the tree) showed the plain kernel's
+    cost is per-row ALU and latency, not the re-read: preloading 3 or 4 rows' inputs spills registers, and column- or
+    row-outer orders that keep one row live re-read inputs or codes from cache and gain nothing. Dropped.
+  - core/simd_qmm_bits (8-row simdgroup-matrix tiles, a scalar twin at 1-2 rows, "row-exact": a row's reduction never
+    depends on the window's rows) is flat with rows in the same bench: wq_b 32768x1280 8-bit, 40 sets: plain 2.0 / 1.9
+    / 2.3 / 3.1 / 3.9 ms at 1 / 2 / 4 / 6 / 8 rows, tiles 2.0 / 2.2 / 2.0 / 2.1 / 2.1; wo_b 5120x8192: plain 2.0 /
+    2.4 / 3.9 / 5.2 / 6.5, tiles 2.0 / 2.3 / 2.1 / 2.1 / 2.1; wq_a 1280x5120: plain 1.0 / 0.9 / 1.2 / 1.6 / 1.9,
+    tiles 1.3 / 0.7 / 0.8 / 0.7 / 0.8. Adopted for a window's dense projections (rows under 16; prompt chunks keep the
+    tensor units), g64 widths with fp32 sums; the twin checked against the tiles at load (first layer and head).
+  - On the model: prompt logits bit-identical to c14c1848 (rand8k, chunk 1,024); a 6-row window equals one row at a
+    time on 8,192 rows (tiles vs twin); DS_DRAFT 64/64 equal (plain 65.2, drafted 61.8 tok/s on the check's prompt);
+    DS_SHARED 108/108 rows, 32/32 drafts (87.5 ms a round shared, 98.7 alone). A window's logits differ from the row
+    kernel's (NRMS 0.20 on the random prompt, argmax equal 7,109 of 8,192; the random prompt's logits are flat, as the
+    prompt path's differ from the decode path's by the same amount). tools/native_kl.py on the study's fp4 replies (190 tokens, three prompts): tiles KL 0.167 / top-1 0.889, row kernels
+    0.164 / 0.893 (code 0.065/0.969 vs 0.063/0.953, math 0.128/0.859 vs 0.134/0.859, zh 0.333/0.823 vs 0.320/0.855).
+  - Profile at 6 rows: attn proj 4.7 -> 2.6, attn out 5.6 -> 4.0, route 3.0 -> 2.4 ms; 45.4 -> 40.9. Server costs:
+    1 / 2 / 4 / 6 rows 15.1 / 19.8 / 27.1 / 33.9 ms (was 14.8 / 19.7 / 29.5 / 39.4), shared 8 / 16 / 24 rows 45.2 /
+    73.3 / 106.2 (was 54.5 / 91.9 / 131.3), a draft round 2.7 (3.2).
+  - Harness: prefill run 20261020-091454-prefill 1,222/1,451/1,422/1,380 tok/s thinking off (unchanged); speed run
+    20261020-091934-dsv41-speed one stream prose/code/structured/list 70.7/104.9/87.6/103.8 (was 68.8/87.7/82.1/94.5),
+    two 96.6/111.6/106.9/150.4, four 126.8/138.5/132.5/146.4 (was 107.1/119.3/115.5/122.1). Spot checks 12/12.
+    Checks: zig build test, kernel contract, golden, fuzz, fmt, lean (0 new) pass. Quality suite not re-run.
