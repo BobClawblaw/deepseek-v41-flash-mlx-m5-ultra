@@ -275,3 +275,25 @@ top-1 agreement and logit error against the shipped fp4 weights).
     1,093/1,240/1,256/1,195), thinking on 1,354/1,456/1,431/1,382; speed run 20261020-061904-dsv41-speed, one stream
     70.6/86.4/76.2/92.9 tok/s (prose/code/structured/list), two 86.9/103.1/97.5/117.0, four 107.2/118.5/114.3/123.5.
     The LaunchAgent serves 98e41cae.
+
+- Upstream merged (2026-10-20, engine c14c1848 = 98e41cae + TensorFold 1.1.1, 93 upstream commits): upstream grew its own CUDA
+  DeepSeek-V4.1 family in families/deepseek_v41 (about 250 files, four names colliding with ours), so a rebase would have
+  replayed 34 commits through add/add conflicts; instead the Metal family moved to families/deepseek_v41_metal (one
+  commit) and upstream main was merged (three content conflicts: build.zig, where metalTargets moved to
+  zig/build/metal_targets.zig and the tf-dsv41 programs went with it; native/metal.zig's --vision message; cli.zig's
+  option line, --thinking-reserve kept beside upstream's --prompt-seed). The registry entry says raw_text = false. A
+  lean-rule commit followed (the engram-ahead gather in ahead.zig, comments under 120 columns). Checks: zig build test,
+  test-kernel-contract, test-golden, fuzz-cortheon, fmt and the lean check (0 new) pass.
+  - Logits bit-identical to 98e41cae: long.npy 1,500 rows, rand8k 8,192 rows in chunks of 3,968 and of 1,024.
+  - Harness: prefill run 20261020-082113-prefill, thinking off 1,213/1,444/1,418/1,372 tok/s, on 1,359/1,442/1,422/1,370;
+    speed run 20261020-082555-dsv41-speed, one stream 68.8/87.7/82.1/94.5, two 87.2/105.0/97.7/116.5, four
+    107.1/119.3/115.5/122.1. Within noise of 98e41cae.
+  - community-v2 benchmark (managed, the public e2e3-p4-h8 snapshot, not publishable: 1.1.1 refuses v2 uploads): all
+    four cells complete, the code prompt through /v1/chat/completions (receipt route recorded): code T=1 88.69, chat T=1
+    70.66, code T=0 95.19, chat T=0 71.45 tok/s. A v1 run on 98e41cae had failed again on code T=1 seeds 1235-1237 (50,
+    34, 196 tokens), the same as on 2026-10-18: the seeds are fixed, so a retry cannot pass.
+  - Upstream's new server rules: Host/Origin checks only for a loopback bind, private routes gated only with an API key
+    configured; the recipe's 0.0.0.0 listener without a key answers the LAN as before (spot check: LAN Host header 200).
+    Sampled requests without a seed draw a fresh one (two no-seed replies differed; seed 7 twice gave the same reply).
+  - Spot checks through the LaunchAgent (c14c1848): thinking on/off, tool call, json_schema, data-URL image, drafted
+    equals plain, LAN Host: pass. Quality suite not re-run on c14c1848 (the forward is unchanged and bit-identical).
