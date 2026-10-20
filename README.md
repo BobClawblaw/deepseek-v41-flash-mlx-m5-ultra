@@ -5,7 +5,7 @@ DeepSeek-V4.1-Flash-1017 served on a single 256 GB Mac Studio (M5 Ultra) by Tens
 - **Context:** the full 1,048,576-token window.
 - **Features:** DSpark drafts, the prompt cache, images, tools and structured output.
 - **Checkpoint:** [`BobClawblaw/DeepSeek-V4.1-Flash-1017-TensorFold-e2e3-p4-h8`](https://huggingface.co/BobClawblaw/DeepSeek-V4.1-Flash-1017-TensorFold-e2e3-p4-h8), 418 GB.
-- **Engine:** the `deepseek-v41-main` branch of [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold/tree/deepseek-v41-main), pinned at `8557236a`.
+- **Engine:** the `deepseek-v41-main` branch of [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold/tree/deepseek-v41-main), pinned at `aee8036c`.
 
 The engine is not part of upstream TensorFold. The DeepSeek family upstream is being coordinated on
 [ashhart/TensorFold#847](https://github.com/ashhart/TensorFold/issues/847).
@@ -45,7 +45,10 @@ Measured on one M5 Ultra (80-core GPU, 256 GB), macOS 27.0.1. Speed comes from
   with the tiles' reduction order, the same at every window width (a 6-row window equals one row at a time on 8,192
   rows, drafted equals plain on 64 of 64 tokens, four shared streams equal each alone on 108 of 108 rows). The twin
   is checked against the tiles at load on the first layer's dense shapes and the head; a difference would keep the
-  row kernels. Against the study's fp4 replies (`tools/native_kl.py`, 190 teacher-forced tokens over three prompts) the tiles give
+  row kernels.
+- **`aee8036c`** decodes WebP images through the core's libwebp decoder (Homebrew's libwebp 1.6.0), as the server's
+  refusal text had promised; GIF stays refused with a clear 400. Through the served API: lossy and lossless WebP,
+  PNG and JPEG answered, GIF refused; spot checks 12 of 12. Against the study's fp4 replies (`tools/native_kl.py`, 190 teacher-forced tokens over three prompts) the tiles give
   KL 0.167 and top-1 0.889, the row kernels 0.164 and 0.893 (code 0.065 / 0.969 against 0.063 / 0.953, math 0.128 /
   0.859 against 0.134 / 0.859, zh 0.333 / 0.823 against 0.320 / 0.855).
 
@@ -114,7 +117,7 @@ Each row below was checked through the server's chat API on engine `269f2447`, a
 | Long context | A passphrase planted 37% of the way into a 1,007,409-token prompt was recalled exactly |
 | Tools | A `get_weather` call comes back as `tool_calls` with the right arguments, with thinking on and with it off |
 | Structured output | A `json_schema` reply parses and fits its schema |
-| Images | A pasted photo of carrots is answered "Carrot"; with `vision_urls` on, a public HTTPS image is described correctly, and loopback, LAN and plain-HTTP URLs are refused with a 400 |
+| Images | A pasted photo of carrots is answered "Carrot"; with `vision_urls` on, a public HTTPS image is described correctly, and loopback, LAN and plain-HTTP URLs are refused with a 400. On `aee8036c`: PNG, JPEG, WebP (lossy and lossless) and PNG with alpha as data URLs, text in an image read exactly, three circles counted, a 3000x2000 JPEG, four images in order, a fifth and a corrupt one refused with clear 400s, a 20k-token turn with an image resumed from the prompt cache next turn, two image requests at once |
 | Drafts | Drafted replies equal `"draft": false` replies (4 of 4); with the check program, a 268-token greedy reply drafted equals it plain |
 | Prompt cache | The harness `turns` check: a resumed third turn equals the same turn sent cold, with 4,541 of 4,561 tokens cached; a 1M conversation resumes in 7.8 s |
 | Concurrency | On `c4c69219` at `--parallel 4`: four requests at once (one sampled with a seed) each equal the same request alone; a reply decoding while a 60k-token prompt went in equals it alone; with `context` 20,000, a second ~12k-token request waited for the first and both finished |

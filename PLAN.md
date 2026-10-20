@@ -333,3 +333,14 @@ top-1 agreement and logit error against the shipped fp4 weights).
   - Quality, thinking off, on 8557236a (run 20261020-092851-dsv41-quality-off): GSM8K 245/250, MATH-500 459/500 (20
     unboxed), MGSM 219/240, MMLU 303/342, IFEval 132/150 loose, 125 strict, tools 58/60, json 30/30; drafts 77 vs 59
     tok/s undrafted; behaviour all pass. Within three questions of bfad20ae on every check.
+
+- Images (2026-10-20, engine aee8036c): the morning's "not responsive" was three 400s for image parts carrying URLs to
+  private hosts (the server's SSRF guard: no flag relaxes it); Hermes' vision tool sends data URLs, which work. A
+  17-case check through the API: PNG, JPEG, PNG with alpha, text read, counting, a 3000x2000 JPEG, four images in
+  order, a fifth and a corrupt one refused, thinking on, streaming, two at once, an image after 20k tokens, a long
+  reply: all pass; GIF refused by design; WebP was refused ("could not be decoded") because the family's image.zig
+  skipped the core's libwebp decoder. aee8036c adds it (lossy and lossless WebP answered). Image conversations resume
+  from the prompt cache (a 20k-token turn with an image: the next turn cached 20,197 of 20,208 tokens in 0.2 s);
+  prompts under the cache's minimum are not kept, with or without images.
+- Retirement (2026-10-20): Ornith-1.5-122B (the ornith-15-122b-mlx-m5-ultra recipe) replaces this server on the Mac;
+  the LaunchAgent is retired once Ornith serves. This recipe stays as the record of the DeepSeek port.
