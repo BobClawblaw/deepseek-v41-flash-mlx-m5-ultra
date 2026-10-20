@@ -329,4 +329,7 @@ top-1 agreement and logit error against the shipped fp4 weights).
   - Harness: prefill run 20261020-091454-prefill 1,222/1,451/1,422/1,380 tok/s thinking off (unchanged); speed run
     20261020-091934-dsv41-speed one stream prose/code/structured/list 70.7/104.9/87.6/103.8 (was 68.8/87.7/82.1/94.5),
     two 96.6/111.6/106.9/150.4, four 126.8/138.5/132.5/146.4 (was 107.1/119.3/115.5/122.1). Spot checks 12/12.
-    Checks: zig build test, kernel contract, golden, fuzz, fmt, lean (0 new) pass. Quality suite not re-run.
+    Checks: zig build test, kernel contract, golden, fuzz, fmt, lean (0 new) pass.
+  - Quality, thinking off, on 8557236a (run 20261020-092851-dsv41-quality-off): GSM8K 245/250, MATH-500 459/500 (20
+    unboxed), MGSM 219/240, MMLU 303/342, IFEval 132/150 loose, 125 strict, tools 58/60, json 30/30; drafts 77 vs 59
+    tok/s undrafted; behaviour all pass. Within three questions of bfad20ae on every check.

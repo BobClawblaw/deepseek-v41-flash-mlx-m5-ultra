@@ -140,22 +140,22 @@ Two notes on these checks:
   - Details are on [#847](https://github.com/ashhart/TensorFold/issues/847#issuecomment-6256853391).
 - **The harness quality suite:** the [GLM-5.3 recipe's](https://github.com/BobClawblaw/glm53-flash-exl3-2x-dgx-sparks)
   suite through recipe-harness, served at 1M context, greedy.
-  - **Thinking off:** run `20261020-043551-dsv41-quality-off`, engine `bfad20ae` (the prompt-speed commit; `98e41cae`
-    changes only a stream's release). The 2026-10-18 run on `269f2447` is kept in the notes for comparison.
+  - **Thinking off:** run `20261020-092851-dsv41-quality-off`, engine `8557236a` (the tiles). The 2026-10-20 run on
+    `bfad20ae` (the prompt-speed commit, row kernels) and the 2026-10-18 run on `269f2447` are in the notes.
   - **Thinking on:** run `20261019-034805-dsv41-thinking`, engine `7837387a` with a 32,768-token reserve, two requests
     at a time.
   - A lone stream's logits are byte-identical on all of these engines, on `c4c69219` and on `c14c1848`. On
-    `8557236a` a prompt's logits are the same and a window's differ (the tiles, above); the suite was not re-run on it.
+    `8557236a` a prompt's logits are the same and a window's differ (the tiles, above).
 
 | Check | Thinking off | Thinking on |
 |---|---|---|
-| GSM8K (first 250) | 246/250 (98.4%) | 243/250 (97.2%) |
-| MATH-500, the suite's fixed grader | 462/500 (92.4%) | at least 469/500 |
+| GSM8K (first 250) | 245/250 (98.0%) | 243/250 (97.2%) |
+| MATH-500, the suite's fixed grader | 459/500 (91.8%) | at least 469/500 |
 | MATH-500, as the runs graded it | the same (this run used the fixed grader) | 451/500 (90.2%) |
-| MGSM (8 languages, 30 each) | 217/240 (90.4%) | not run |
-| MMLU (342 questions) | 306/342 (89.5%) | not run |
-| IFEval (150 prompts) | 130/150 loose, 124/150 strict | not run |
-| Tools | 57/60 | not run |
+| MGSM (8 languages, 30 each) | 219/240 (91.2%) | not run |
+| MMLU (342 questions) | 303/342 (88.6%) | not run |
+| IFEval (150 prompts) | 132/150 loose, 125/150 strict | not run |
+| Tools | 58/60 | not run |
 | Structured output | 30/30 | not run |
 | GPQA-Diamond | not run | not run |
 | The harness's thinking problems | — | 10/10, all with `reasoning_content` |
@@ -164,30 +164,28 @@ Notes on the table:
 - **MATH-500's grader** rejected some correct answers: units after a number, `{,}` separators, set braces, lists in
   another order, and (a bug) matrices written with spaces. It was fixed on 2026-10-19 (the suite's `277c842`). The
   thinking-on run was regraded from the answers it kept; it kept only its first 40 misses, hence "at least". The
-  thinking-off run of 2026-10-20 used the fixed grader from the start. Most of what is still marked wrong with
+  thinking-off runs of 2026-10-20 used the fixed grader from the start. Most of what is still marked wrong with
   thinking on is the same value written another way, plus four replies with no boxed answer. With thinking off it is
-  mostly wrong values plus 17 with no boxed answer (a `pm` against two listed roots, and a matrix of `\frac`s against
-  one of slashes, are still graded wrong). The details are in
+  mostly wrong values plus 20 with no boxed answer. The details are in
   [recipe-harness's README](https://github.com/BobClawblaw/recipe-harness#reading-quality-scores-the-graders-limits).
-- **The 2026-10-18 thinking-off run** on `269f2447` scored GSM8K 247/250, MATH-500 457/500 as graded then (at least
-  465 regraded), MGSM 217/240, MMLU 307/342, IFEval 129/150 loose and 122/150 strict, tools 58/60. Against it the
-  new run is one question down on GSM8K, MMLU and tools, one up on IFEval and two up on strict IFEval, and the
-  MATH-500 difference is the grader. The two engines' logits were compared on four prompts, not on the suite's, and
-  the loop guard added on `f8a3ce2f` ends a reply that repeats a passage, so a question's difference between the
-  runs is not a surprise.
-- **GSM8K with thinking on** misses three problems that thinking off gets right. Each turns on ambiguous wording read
+- **Earlier thinking-off runs:** on `bfad20ae` (row kernels, 2026-10-20) GSM8K 246/250, MATH-500 462/500, MGSM
+  217/240, MMLU 306/342, IFEval 130/150 loose and 124/150 strict, tools 57/60; on `269f2447` (2026-10-18) GSM8K
+  247/250, MATH-500 457/500 as graded then (at least 465 regraded), MGSM 217/240, MMLU 307/342, IFEval 129/150 loose
+  and 122/150 strict, tools 58/60. The tiles run is within three questions of both on every check, up on some and
+  down on others, as a reduction-order change should be (the KL check above).
+- **GSM8K with thinking on** misses two problems that thinking off gets right. Each turns on ambiguous wording read
   another way than the answer key. For example, it reads "two times older" as 1 + 2 x 1, and answers "how much more
-  likely, as a percentage" with the relative difference rather than percentage points. The other four misses are
+  likely, as a percentage" with the relative difference rather than percentage points. The other five misses are
   the same in both modes.
-- **MATH-500 by level,** thinking off (the fixed grader): L1 42/43, L2 90/90, L3 99/105, L4 114/128, L5 117/134.
+- **MATH-500 by level,** thinking off (the fixed grader): L1 43/43, L2 90/90, L3 97/105, L4 117/128, L5 112/134.
   Thinking on (as the run graded it): L1 41/43, L2 79/90, L3 96/105, L4 113/128, L5 122/134.
 - **GPQA-Diamond was not run to the end.** With thinking on and greedy decoding, two of its first twenty questions
   reasoned in a loop and never answered. Question 8 repeats the same passage about the molecule's symmetry from 38%
   of the way in. Both used all 36,864 tokens of the 32k reserve and, asked again, all 53,248 of the 48k one.
   The loop guard on `f8a3ce2f` now closes such a loop, after which the model answers. Both questions then answered,
   wrongly.
-- **Tools:** the three misses are right calls with one optional argument more than the checker expects (an empty
-  `folder` twice, a `label`).
+- **Tools:** both misses are right calls with one optional argument more than the checker expects (an empty
+  `folder`, a `label`).
 - **Behaviour and drafts:** streaming, multi-turn recall, stop strings, thinking split, exact copy, `max_tokens` and
   12 drafted-vs-plain replies all pass.
 - **IFEval with thinking on** is not in the table: the suite always sends IFEval with thinking off.
