@@ -244,3 +244,34 @@ top-1 agreement and logit error against the shipped fp4 weights).
 - The loop guard commit was reworded to f8a3ce2f (2026-10-19, the same tree): its message had said ten test binaries
   fail under zig build test, the runner's "failed command:" lines misread. It was ab93aeef.
 
+- Prompt speed (2026-10-20, engine bfad20ae, three changes, each bit-identical to f8a3ce2f on a 1,500-token prompt and
+  an 8,192-token random one):
+  - Profile first (tf-dsv41-forward DS_DEPTH, a 1,024-row chunk, GPU ms by section): depth 0 809 ms (1,266 tok/s) with
+    the routed experts 432 (every expert's weights stream once a chunk, ~16 slots an expert in 32-row tiles);
+    compress+index grows 1.7 ms a 1k of depth (the four full-scan indexers): 277 at 131k, 898 at 524k, 1,751 of
+    2,546 at 1M (402 tok/s). The profiler cycles a warm prompt: on novel text the host engram gather reads cold table
+    pages, 307 ms of a 1,171 ms chunk (DS_PROFILE on an 8,192-token random prompt), not the 21 ms it shows.
+  - A lone stream's prompt goes in chunks of 3,968 rows (the ring less the window; 1,024 beside other streams, which
+    decode between chunks): 2,585 ms a chunk, 1,535 tok/s at depth 0 (2,048 rows: 1,427). Save marks sit at the
+    history boundary, not every chunk, so the prompt cache is unchanged; a short prompt's mark still cuts at 1,024.
+  - The next chunk's engram rows are gathered on the host while this one's command buffer runs (forward.runChunk, two
+    sets of rows in the scratch): the random prompt's chunks 1,171 -> 782 ms.
+  - A lone chunk's index scores on the tensor units (v41_index_nax.metal, GLM's tile: 64 rows by 64 keys), the lane
+    kernel's bf16 rounding of each head's term and head-order sum kept; score_budget 256 MiB (64-row slices at 1M).
+    Compress+index at 131k/524k/1M: 277/898/1,751 -> 131/270/556 ms; the 1,024-row chunk 931/1,066/1,354 ms. The
+    scores are bit-identical because the index queries and keys are fp4: a 128-term dot of 2-bit significands is
+    exact in fp32 in any order. DS_SKIP=ds_index_scores_nax changes every row (the path runs).
+  - Together, 3,968-row chunks at depths 0/131k/524k/1M: 1,535/1,325/1,132/854 tok/s (was 1,266/953/604/402). What
+    is left at 1M is the indexer still (2,145 of 4,644 ms: the kept scorer, block max and the top-k over 1M scores a
+    row), then the experts (1,193). zig build test passes (exit 0); fmt clean.
+  - Quality with thinking off on bfad20ae (run 20261020-043551-dsv41-quality-off, the fixed MATH-500 grader): GSM8K
+    246/250, MATH-500 462/500 (17 without a boxed answer), MGSM 217/240, MMLU 306/342, IFEval 130/150 loose and
+    124/150 strict, tools 57/60 (each miss an extra optional argument), json 30/30, drafts and behaviour all pass.
+    Against the 2026-10-18 run on 269f2447: one down on GSM8K, MMLU and tools, one up on IFEval, MATH-500 up on the
+    grader. The suite sends 16 requests at a time to a four-stream server; which replies share a forward differs
+    between runs. Not re-run with thinking on.
+  - Harness on 98e41cae (bfad20ae plus a release-path fix: a stream's release drops the chunk gathered ahead for it):
+    prefill run 20261020-061318-prefill, thinking off 1,172/1,453/1,430/1,383 tok/s at ~2k/8k/33k/131k (6a4d7be7:
+    1,093/1,240/1,256/1,195), thinking on 1,354/1,456/1,431/1,382; speed run 20261020-061904-dsv41-speed, one stream
+    70.6/86.4/76.2/92.9 tok/s (prose/code/structured/list), two 86.9/103.1/97.5/117.0, four 107.2/118.5/114.3/123.5.
+    The LaunchAgent serves 98e41cae.

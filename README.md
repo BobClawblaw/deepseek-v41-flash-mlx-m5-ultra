@@ -5,7 +5,7 @@ DeepSeek-V4.1-Flash-1017 served on a single 256 GB Mac Studio (M5 Ultra) by Tens
 - **Context:** the full 1,048,576-token window.
 - **Features:** DSpark drafts, the prompt cache, images, tools and structured output.
 - **Checkpoint:** [`BobClawblaw/DeepSeek-V4.1-Flash-1017-TensorFold-e2e3-p4-h8`](https://huggingface.co/BobClawblaw/DeepSeek-V4.1-Flash-1017-TensorFold-e2e3-p4-h8), 418 GB.
-- **Engine:** the `deepseek-v41-main` branch of [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold/tree/deepseek-v41-main), pinned at `f8a3ce2f`.
+- **Engine:** the `deepseek-v41-main` branch of [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold/tree/deepseek-v41-main), pinned at `98e41cae`.
 
 The engine is not part of upstream TensorFold. The DeepSeek family upstream is being coordinated on
 [ashhart/TensorFold#847](https://github.com/ashhart/TensorFold/issues/847).
@@ -24,48 +24,57 @@ Measured on one M5 Ultra (80-core GPU, 256 GB), macOS 27.0.1. Speed comes from
   below). A lone stream's logits are byte-identical to `7837387a`'s on the same four prompts.
 - **The rebase was checked:** its logits are byte-identical to the pre-rebase build on four prompts (chunks of 1,024
   and of 256, draft windows of 6, one row at a time).
+- **`bfad20ae`** makes prompts faster (Prompts, below): a lone stream's prompt goes in chunks of 3,968 rows (1,024
+  beside other streams), the next chunk's engram rows are gathered on the CPU while the GPU runs this one, and a
+  chunk's index scores run on the tensor units. Logits are bit-identical to `f8a3ce2f` on a 1,500-token prompt and an
+  8,192-token random one, in chunks of 1,024 and of 3,968; decode is unchanged.
 
 ### Decode, one stream
 
-Harness speed plan, run `20261018-184411-speed`. Drafts on, thinking off, greedy, short prompts.
+Harness speed plan, run `20261020-061904-dsv41-speed` on `98e41cae`. Drafts on, thinking off, greedy, short prompts.
 
 | Prose | Code | Structured | List | First token |
 |---|---|---|---|---|
-| 67.5 tok/s | 87.5 tok/s | 77.6 tok/s | 94.4 tok/s | 0.11–0.14 s |
+| 70.6 tok/s | 86.4 tok/s | 76.2 tok/s | 92.9 tok/s | 0.10–0.14 s |
 
 At 1M deep, a follow-up turn on a 1,007,442-token conversation decoded 197 tokens at 46.3 tok/s, drafts on. That
 is one sample from a script, not the harness.
 
 ### Prompts, cold
 
-Harness prefill plan, run `20261018-183907-prefill`. One fresh prompt per size, timed to the first token (with thinking
-on, the first reasoning token).
+Harness prefill plan, run `20261020-061318-prefill` on `98e41cae`. One fresh prompt per size, timed to the first token
+(with thinking on, the first reasoning token).
 
 | Prompt tokens | Thinking off | Thinking on |
 |---|---|---|
-| ~2k | 1,093 tok/s | 1,339 tok/s |
-| ~8k | 1,240 tok/s | 1,392 tok/s |
-| ~33k | 1,256 tok/s | 1,334 tok/s |
-| ~131k | 1,195 tok/s | 1,210 tok/s |
+| ~2k | 1,172 tok/s | 1,354 tok/s |
+| ~8k | 1,453 tok/s | 1,456 tok/s |
+| ~33k | 1,430 tok/s | 1,431 tok/s |
+| ~131k | 1,383 tok/s | 1,382 tok/s |
 
-A 1,007,409-token prompt took 1,783.5 s (565 tok/s on average) through the server.
+On `6a4d7be7` (run `20261018-183907-prefill`) these were 1,093 / 1,240 / 1,256 / 1,195 tok/s thinking off, and a
+1,007,409-token prompt took 1,783.5 s (565 tok/s on average) through the server. That 1M prompt has not been re-sent on
+`98e41cae`; in the engine's depth profile (`tf-dsv41-forward DS_DEPTH`, a lone 3,968-row chunk) the chunk at 1M depth
+went from 402 to 854 tok/s, at 524k from 604 to 1,132.
 
 ### Several streams
 
 Up to four streams decode together: their windows go through one forward, each stream's attention on its own rows.
 Every shared forward uses the row kernels a stream uses alone, so each reply is the same as it would be alone. Each
 row still reads its own routed experts, which limits the gain. Measured with the recipe harness (run
-`20261019-090829-dsv41-speed`, engine `c4c69219`, 256-token replies), in tok/s summed over the streams by wall clock:
+`20261020-061904-dsv41-speed`, engine `98e41cae`, 256-token replies), in tok/s summed over the streams by wall clock:
 
 | Streams | Prose | Code | Structured | List | First token |
 |---|---|---|---|---|---|
-| 1 | 64.0 | 86.8 | 71.4 | 84.7 | 0.11-0.14 s |
-| 2 | 82.1 | 94.7 | 79.3 | 98.8 | 0.22-0.28 s |
-| 4 | 93.5 | 101.4 | 89.8 | 102.1 | 0.45-0.58 s |
+| 1 | 70.6 | 86.4 | 76.2 | 92.9 | 0.10-0.14 s |
+| 2 | 86.9 | 103.1 | 97.5 | 117.0 | 0.21-0.28 s |
+| 4 | 107.2 | 118.5 | 114.3 | 123.5 | 0.44-0.58 s |
 
-A new prompt goes in 1,024 tokens at a time, with the other streams decoding between chunks for half the time. For
-example, a 60k-token prompt took 54.2 s while another reply decoded, against 43.0 s alone. During it, 18 chunks took
-14.6 s and the reply decoded in the 14.6 s between them.
+On `c4c69219` (run `20261019-090829-dsv41-speed`) four streams gave 93.5 / 101.4 / 89.8 / 102.1.
+
+A lone stream's prompt goes in 3,968 tokens at a time. Beside other streams it goes in 1,024 at a time, with the other
+streams decoding between chunks for half the time: on `c4c69219`, a 60k-token prompt took 54.2 s while another reply
+decoded, against 43.0 s alone, and during it 18 chunks took 14.6 s and the reply decoded in the 14.6 s between them.
 
 The streams share `context`: each holds its prompt plus its `max_tokens` (and, with thinking on, the reserve). A
 request that would pass it waits until a stream ends, and the requests queued behind it wait in order.
@@ -109,44 +118,53 @@ Two notes on these checks:
   - Details are on [#847](https://github.com/ashhart/TensorFold/issues/847#issuecomment-6256853391).
 - **The harness quality suite:** the [GLM-5.3 recipe's](https://github.com/BobClawblaw/glm53-flash-exl3-2x-dgx-sparks)
   suite through recipe-harness, served at 1M context, greedy.
-  - **Thinking off:** run `20261018-202801-dsv41-quality`, engine `269f2447`.
+  - **Thinking off:** run `20261020-043551-dsv41-quality-off`, engine `bfad20ae` (the prompt-speed commit; `98e41cae`
+    changes only a stream's release). The 2026-10-18 run on `269f2447` is kept in the notes for comparison.
   - **Thinking on:** run `20261019-034805-dsv41-thinking`, engine `7837387a` with a 32,768-token reserve, two requests
     at a time.
-  - A lone stream's logits are byte-identical on both engines and on `c4c69219`.
+  - A lone stream's logits are byte-identical on all of these engines and on `c4c69219`.
 
 | Check | Thinking off | Thinking on |
 |---|---|---|
-| GSM8K (first 250) | 247/250 (98.8%) | 243/250 (97.2%) |
-| MATH-500, the suite's fixed grader | at least 465/500 | at least 469/500 |
-| MATH-500, as the runs graded it | 457/500 (91.4%) | 451/500 (90.2%) |
+| GSM8K (first 250) | 246/250 (98.4%) | 243/250 (97.2%) |
+| MATH-500, the suite's fixed grader | 462/500 (92.4%) | at least 469/500 |
+| MATH-500, as the runs graded it | the same (this run used the fixed grader) | 451/500 (90.2%) |
 | MGSM (8 languages, 30 each) | 217/240 (90.4%) | not run |
-| MMLU (342 questions) | 307/342 (89.8%) | not run |
-| IFEval (150 prompts) | 129/150 loose, 122/150 strict | not run |
-| Tools | 58/60 | not run |
+| MMLU (342 questions) | 306/342 (89.5%) | not run |
+| IFEval (150 prompts) | 130/150 loose, 124/150 strict | not run |
+| Tools | 57/60 | not run |
 | Structured output | 30/30 | not run |
 | GPQA-Diamond | not run | not run |
 | The harness's thinking problems | — | 10/10, all with `reasoning_content` |
 
 Notes on the table:
 - **MATH-500's grader** rejected some correct answers: units after a number, `{,}` separators, set braces, lists in
-  another order, and (a bug) matrices written with spaces. It was fixed on 2026-10-19 (the suite's `277c842`), and
-  both runs were regraded from the answers they kept. Those runs kept only their first 40 misses, hence "at least".
-  Most of what is still marked wrong with thinking on is the same value written another way, plus four replies with
-  no boxed answer. With thinking off it is mostly wrong values plus 12 with no boxed answer. The details are in
+  another order, and (a bug) matrices written with spaces. It was fixed on 2026-10-19 (the suite's `277c842`). The
+  thinking-on run was regraded from the answers it kept; it kept only its first 40 misses, hence "at least". The
+  thinking-off run of 2026-10-20 used the fixed grader from the start. Most of what is still marked wrong with
+  thinking on is the same value written another way, plus four replies with no boxed answer. With thinking off it is
+  mostly wrong values plus 17 with no boxed answer (a `pm` against two listed roots, and a matrix of `\frac`s against
+  one of slashes, are still graded wrong). The details are in
   [recipe-harness's README](https://github.com/BobClawblaw/recipe-harness#reading-quality-scores-the-graders-limits).
-- **GSM8K with thinking on** misses four problems that thinking off gets right. Each turns on ambiguous wording read
+- **The 2026-10-18 thinking-off run** on `269f2447` scored GSM8K 247/250, MATH-500 457/500 as graded then (at least
+  465 regraded), MGSM 217/240, MMLU 307/342, IFEval 129/150 loose and 122/150 strict, tools 58/60. Against it the
+  new run is one question down on GSM8K, MMLU and tools, one up on IFEval and two up on strict IFEval, and the
+  MATH-500 difference is the grader. The two engines' logits were compared on four prompts, not on the suite's, and
+  the loop guard added on `f8a3ce2f` ends a reply that repeats a passage, so a question's difference between the
+  runs is not a surprise.
+- **GSM8K with thinking on** misses three problems that thinking off gets right. Each turns on ambiguous wording read
   another way than the answer key. For example, it reads "two times older" as 1 + 2 x 1, and answers "how much more
-  likely, as a percentage" with the relative difference rather than percentage points. The other three misses are
+  likely, as a percentage" with the relative difference rather than percentage points. The other four misses are
   the same in both modes.
-- **MATH-500 by level,** thinking off: L1 40/43, L2 87/90, L3 99/105, L4 119/128, L5 112/134. Thinking on: L1 41/43,
-  L2 79/90, L3 96/105, L4 113/128, L5 122/134 (both as the runs graded them).
+- **MATH-500 by level,** thinking off (the fixed grader): L1 42/43, L2 90/90, L3 99/105, L4 114/128, L5 117/134.
+  Thinking on (as the run graded it): L1 41/43, L2 79/90, L3 96/105, L4 113/128, L5 122/134.
 - **GPQA-Diamond was not run to the end.** With thinking on and greedy decoding, two of its first twenty questions
   reasoned in a loop and never answered. Question 8 repeats the same passage about the molecule's symmetry from 38%
   of the way in. Both used all 36,864 tokens of the 32k reserve and, asked again, all 53,248 of the 48k one.
   The loop guard on `f8a3ce2f` now closes such a loop, after which the model answers. Both questions then answered,
   wrongly.
-- **Tools:** both misses are right calls with one optional argument more than the checker expects (an empty
-  `folder`, a `label`).
+- **Tools:** the three misses are right calls with one optional argument more than the checker expects (an empty
+  `folder` twice, a `label`).
 - **Behaviour and drafts:** streaming, multi-turn recall, stop strings, thinking split, exact copy, `max_tokens` and
   12 drafted-vs-plain replies all pass.
 - **IFEval with thinking on** is not in the table: the suite always sends IFEval with thinking off.
