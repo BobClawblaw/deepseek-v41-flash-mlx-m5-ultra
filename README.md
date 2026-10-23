@@ -104,7 +104,7 @@ are cold, by how much depending on what the page cache still holds. So the harne
 (1,222 on `8557236a`, 1,337 on `4f0c5e5e`, 759 on `04c41884`). Measured by a script (not the harness), each server
 freshly loaded and sent one fresh ~2k thinking-off prompt, then warm ones: `4f0c5e5e` 3.47 and 2.76 s cold, then
 1.41-1.43 s; `04c41884` 2.81, 3.15 and 3.35 s cold, then 1.41-1.49 s (1,389-1,488 tok/s, against the old engine's
-1,222). The cold cost is the same on both: about 1.4-2 s on the first request after a load.
+1,222). The cold cost is the same on both: 1.3-2.1 s more on the first request after a load.
 
 Runs in between, thinking off (~2k / ~8k / ~33k / ~131k): `4f0c5e5e` 1,337 / 1,642 / 1,654 / 1,608
 (`20261022-201421-prefill`), `845ccbd8` 1,334 / 1,614 / 1,581 / 1,525 (`20261022-162728-prefill`); before them
