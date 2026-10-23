@@ -99,12 +99,12 @@ first reasoning token); tok/s.
 
 Each run's ~2k thinking-off prompt is its first request after the server loads, and its first chunk waits on the
 engram table: 189 GB that stays on the SSD (memory-mapped beside ~200 GB of weights). A prompt's later chunks have
-their rows read while the GPU runs the chunk before; the first has nothing to hide behind, and after a load or a few
-idle minutes its rows are cold. Since `04c41884` that first chunk is up to 3,072 tokens instead of 1,024, so a cold
-request reads more before the GPU starts: the first ~2k request after a load now takes 2.7-3.4 s to its first token,
-against about 1.7 s on `8557236a`. Warm requests do not pay it. Fresh ~2k thinking-off prompts sent one after another
-by a script (not the harness) on `04c41884`: 3.35 s cold (618 tok/s), then 1.49, 1.45, 1.43 and 1.41 s (1,389-1,474
-tok/s, against the old engine's 1,222).
+their rows read while the GPU runs the chunk before; the first has nothing to hide behind, and after a load its rows
+are cold, by how much depending on what the page cache still holds. So the harness's first cell varies run to run
+(1,222 on `8557236a`, 1,337 on `4f0c5e5e`, 759 on `04c41884`). Measured by a script (not the harness), each server
+freshly loaded and sent one fresh ~2k thinking-off prompt, then warm ones: `4f0c5e5e` 3.47 and 2.76 s cold, then
+1.41-1.43 s; `04c41884` 2.81, 3.15 and 3.35 s cold, then 1.41-1.49 s (1,389-1,488 tok/s, against the old engine's
+1,222). The cold cost is the same on both: about 1.4-2 s on the first request after a load.
 
 Runs in between, thinking off (~2k / ~8k / ~33k / ~131k): `4f0c5e5e` 1,337 / 1,642 / 1,654 / 1,608
 (`20261022-201421-prefill`), `845ccbd8` 1,334 / 1,614 / 1,581 / 1,525 (`20261022-162728-prefill`); before them
