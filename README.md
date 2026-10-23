@@ -85,24 +85,30 @@ is one sample from a script, not the harness.
 
 ### Prompts, cold
 
-Harness prefill plan, run `20261022-205404-prefill` on `04c41884`. One fresh prompt per size, timed to the first token
-(with thinking on, the first reasoning token).
+Harness prefill plan: run `20261020-091454-prefill` on `8557236a` (the prompt path `aee8036c` kept) against run
+`20261022-205404-prefill` on `04c41884`. One fresh prompt per size, timed to the first token (with thinking on, the
+first reasoning token); tok/s.
 
-| Prompt tokens | Thinking off | Thinking on |
-|---|---|---|
-| ~2k | 759 tok/s (cold, below) | 1,598 tok/s |
-| ~8k | 1,718 tok/s | 1,837 tok/s |
-| ~33k | 1,806 tok/s | 1,826 tok/s |
-| ~131k | 1,772 tok/s | 1,772 tok/s |
+| Prompt tokens | Thinking off, old | Thinking off, now | Thinking on, old | Thinking on, now |
+|---|---|---|---|---|
+| ~2k | 1,222 | 759 (cold, below) | 1,366 | 1,598 (+17%) |
+| ~8k | 1,451 | 1,718 (+18%) | 1,445 | 1,837 (+27%) |
+| ~33k | 1,422 | 1,806 (+27%) | 1,424 | 1,826 (+28%) |
+| ~131k | 1,380 | 1,772 (+28%) | 1,378 | 1,772 (+29%) |
+| ~1M | 565 (`6a4d7be7`, 1,783.5 s) | 1,386 (740.0 s) | | |
 
-The ~2k thinking-off prompt was the run's first request after the server loaded. Its first chunk waits on the engram
-table, 189 GB that stays on the SSD (memory-mapped beside ~200 GB of weights): a prompt's later chunks have their rows
-read while the GPU runs the chunk before, but the first has nothing to hide behind, and after a load or a few idle
-minutes its rows are cold. That adds 0.6-1.9 s to a cold request's first token; warm requests do not pay it.
+Each run's ~2k thinking-off prompt is its first request after the server loads, and its first chunk waits on the
+engram table: 189 GB that stays on the SSD (memory-mapped beside ~200 GB of weights). A prompt's later chunks have
+their rows read while the GPU runs the chunk before; the first has nothing to hide behind, and after a load or a few
+idle minutes its rows are cold. Since `04c41884` that first chunk is up to 3,072 tokens instead of 1,024, so a cold
+request reads more before the GPU starts: the first ~2k request after a load now takes 2.7-3.4 s to its first token,
+against about 1.7 s on `8557236a`. Warm requests do not pay it. Fresh ~2k thinking-off prompts sent one after another
+by a script (not the harness) on `04c41884`: 3.35 s cold (618 tok/s), then 1.49, 1.45, 1.43 and 1.41 s (1,389-1,474
+tok/s, against the old engine's 1,222).
 
-Earlier runs, thinking off (~2k / ~8k / ~33k / ~131k): `4f0c5e5e` 1,337 / 1,642 / 1,654 / 1,608
-(`20261022-201421-prefill`), `845ccbd8` 1,334 / 1,614 / 1,581 / 1,525 (`20261022-162728-prefill`), `8557236a` 1,222 /
-1,451 / 1,422 / 1,380 (`20261020-091454-prefill`), `6a4d7be7` 1,093 / 1,240 / 1,256 / 1,195 (`20261018-183907-prefill`).
+Runs in between, thinking off (~2k / ~8k / ~33k / ~131k): `4f0c5e5e` 1,337 / 1,642 / 1,654 / 1,608
+(`20261022-201421-prefill`), `845ccbd8` 1,334 / 1,614 / 1,581 / 1,525 (`20261022-162728-prefill`); before them
+`6a4d7be7` 1,093 / 1,240 / 1,256 / 1,195 (`20261018-183907-prefill`).
 
 A 1,025,994-token prompt (numbered lines of words, a passphrase 37% of the way in, asked for at the end; thinking off)
 reached its first token in 740.0 s through the server on `04c41884`, 1,386 tok/s on average, and the reply was the
