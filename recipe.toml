@@ -17,7 +17,7 @@ block_dense_bits = 4
 
 [engine]
 tensorfold_src = "~/github/TensorFold"   # a checkout holding the sha (BobClawblaw/TensorFold); `build` adds a worktree
-tensorfold_sha = "04c41884be49c755a6deb3da90fbaac3cb1b06fe"   # the deepseek-v41-main branch's commit to build
+tensorfold_sha = "72a552ed09f5962379261e429552d83955cb37ad"   # the deepseek-v41-main branch's commit to build
 zig = "~/tools/zig-0.17.0/zig"
 zig_cpu = "native"                       # this Mac's M5 (the tensor-unit prompt kernels); apple_m1 for older chips
 binary = ""                              # a prebuilt tensorfold-native to serve with instead of the pinned build

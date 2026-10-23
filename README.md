@@ -5,7 +5,7 @@ DeepSeek-V4.1-Flash-1017 served on a single 256 GB Mac Studio (M5 Ultra) by Tens
 - **Context:** the full 1,048,576-token window.
 - **Features:** DSpark drafts, the prompt cache, images, tools and structured output.
 - **Checkpoint:** [`BobClawblaw/DeepSeek-V4.1-Flash-1017-TensorFold-e2e3-p4-h8`](https://huggingface.co/BobClawblaw/DeepSeek-V4.1-Flash-1017-TensorFold-e2e3-p4-h8), 418 GB.
-- **Engine:** the `deepseek-v41-main` branch of [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold/tree/deepseek-v41-main), pinned at `04c41884`.
+- **Engine:** the `deepseek-v41-main` branch of [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold/tree/deepseek-v41-main), pinned at `72a552ed`.
 
 The engine is not part of upstream TensorFold. The DeepSeek family upstream is being coordinated on
 [ashhart/TensorFold#847](https://github.com/ashhart/TensorFold/issues/847).
@@ -15,9 +15,10 @@ The engine is not part of upstream TensorFold. The DeepSeek family upstream is b
 Measured on one M5 Ultra (80-core GPU, 256 GB), macOS 27.0.1. Speed comes from
 [recipe-harness](https://github.com/BobClawblaw/recipe-harness), target `deepseek-v41-m5`; its `stats/` has every run.
 
-- **Engine for these runs:** each table names its engine and run. The prompt numbers and the 1M run are on `04c41884`;
-  decode and several streams are on `8557236a`, whose decode path the later builds keep. The first builds, `6a4d7be7`,
-  were reworded and rebased onto TensorFold 1.1.0 as `269f2447`, with the same DeepSeek code.
+- **Engine for these runs:** each table names its engine and run. The prompt numbers and the thinking-off quality run
+  are on `72a552ed` and the 1M run on `04c41884`; decode and several streams are on `8557236a`, whose decode path the
+  later builds keep. The first builds, `6a4d7be7`, were reworded and rebased onto TensorFold 1.1.0 as `269f2447`, with
+  the same DeepSeek code.
 - **`7837387a`** adds the thinking reserve (below) to the server and the lanes; the forward is unchanged.
 - **`f8a3ce2f`** adds a guard for reasoning that repeats a long passage verbatim (below); replies that don't loop are
   unchanged.
@@ -71,6 +72,19 @@ Measured on one M5 Ultra (80-core GPU, 256 GB), macOS 27.0.1. Speed comes from
   engine's depth profile (`tf-dsv41-forward DS_DEPTH`, a lone 3,968-row chunk) the chunk went from 1,548 to 1,779 tok/s
   at depth 0 and from 854 to 1,132 at 1M (`aee8036c` to `4f0c5e5e`). A spot check through the served API on `04c41884`
   passed: a data-URL image, a `get_weather` call, a `json_schema` reply and a drafted reply equal to its plain one.
+- **`72a552ed`** runs a prompt chunk's routed experts as int8 x int8 on the tensor units, which multiply int8 at about
+  twice the rate of bf16 (The GPU's matrix units, below). Each chunk's expert inputs are rounded to int8 with one fp32
+  scale a 32 columns, the 2- and 3-bit codes go into the tile as int8 instead of bf16, and the sums are int32. The
+  weights in memory are unchanged; two scratch buffers add 62 MB. Decode (one row, or a draft window, at a time) keeps
+  bf16. In the depth profile a 3,968-row chunk goes from 1,772 to 1,825 tok/s at depth 0 and from 1,115 to 1,140 at 1M
+  (bf16 is still there for the check program, `DS_BF16=1`, whose logits are byte-identical to `04c41884`'s); through the
+  server the prompts are from 1% slower to 2% faster than `04c41884`'s (below). A prompt's logits change: KL 0.018
+  against bf16 on the 1,500-token prompt, where bf16's own prompt path and its one-row-at-a-time path differ by 0.019.
+  Four shared streams equal each alone (5,880 of 5,880 rows, 1,680 of 1,680 drafts), drafted equals plain on 64 of 64
+  tokens, and through the served API a data-URL image, a `get_weather` call, a `json_schema` reply and a drafted reply
+  equal to its plain one pass. The thinking-off quality run (Quality, below) is inside the bf16 runs' range on every
+  check but MATH-500, where it scores above them; the thinking-on run was not repeated. The harness runs and the served
+  checks ran on `5babc696`, which differs from `72a552ed` in three comments only.
 
 ### Decode, one stream
 
@@ -86,35 +100,48 @@ is one sample from a script, not the harness.
 ### Prompts, cold
 
 Harness prefill plan: run `20261020-091454-prefill` on `8557236a` (the prompt path `aee8036c` kept) against run
-`20261022-205404-prefill` on `04c41884`. One fresh prompt per size, timed to the first token (with thinking on, the
+`20261023-021006-prefill` on `72a552ed`. One fresh prompt per size, timed to the first token (with thinking on, the
 first reasoning token); tok/s.
 
 | Prompt tokens | Thinking off, old | Thinking off, now | Thinking on, old | Thinking on, now |
 |---|---|---|---|---|
-| ~2k | 1,222 | 759 (cold, below) | 1,366 | 1,598 (+17%) |
-| ~8k | 1,451 | 1,718 (+18%) | 1,445 | 1,837 (+27%) |
-| ~33k | 1,422 | 1,806 (+27%) | 1,424 | 1,826 (+28%) |
-| ~131k | 1,380 | 1,772 (+28%) | 1,378 | 1,772 (+29%) |
-| ~1M | 565 (`6a4d7be7`, 1,783.5 s) | 1,386 (740.0 s) | | |
+| ~2k | 1,222 | 656 (cold, below) | 1,366 | 1,614 (+18%) |
+| ~8k | 1,451 | 1,739 (+20%) | 1,445 | 1,867 (+29%) |
+| ~33k | 1,422 | 1,829 (+29%) | 1,424 | 1,807 (+27%) |
+| ~131k | 1,380 | 1,793 (+30%) | 1,378 | 1,769 (+28%) |
+| ~1M | 565 (`6a4d7be7`, 1,783.5 s) | 1,386 (`04c41884`, 740.0 s) | | |
 
-Each run's ~2k thinking-off prompt is its first request after the server loads, and its first chunk waits on the
-engram table: 189 GB that stays on the SSD (memory-mapped beside ~200 GB of weights). A prompt's later chunks have
-their rows read while the GPU runs the chunk before; the first has nothing to hide behind, and after a load its rows
-are cold, by how much depending on what the page cache still holds. So the harness's first cell varies run to run
-(1,222 on `8557236a`, 1,337 on `4f0c5e5e`, 759 on `04c41884`). Measured by a script (not the harness), each server
-freshly loaded and sent one fresh ~2k thinking-off prompt, then warm ones: `4f0c5e5e` 3.47 and 2.76 s cold, then
+Each run's ~2k thinking-off prompt is its first request after the server loads, and its first chunk waits on the engram
+table: 189 GB that stays on the SSD (memory-mapped beside ~200 GB of weights). A prompt's later chunks have their rows
+read while the GPU runs the chunk before; the first has nothing to hide behind, and after a load its rows are cold, by
+how much depending on what the page cache still holds. So the harness's first cell varies run to run (1,222 on
+`8557236a`, 1,337 on `4f0c5e5e`, 759 on `04c41884`, 656 on `72a552ed`). Measured by a script (not the harness), each
+server freshly loaded and sent one fresh ~2k thinking-off prompt, then warm ones: `4f0c5e5e` 3.47 and 2.76 s cold, then
 1.41-1.43 s; `04c41884` 2.81, 3.15 and 3.35 s cold, then 1.41-1.49 s (1,389-1,488 tok/s, against the old engine's
 1,222). The cold cost is the same on both: 1.3-2.1 s more on the first request after a load.
 
-Runs in between, thinking off (~2k / ~8k / ~33k / ~131k): `4f0c5e5e` 1,337 / 1,642 / 1,654 / 1,608
-(`20261022-201421-prefill`), `845ccbd8` 1,334 / 1,614 / 1,581 / 1,525 (`20261022-162728-prefill`); before them
-`6a4d7be7` 1,093 / 1,240 / 1,256 / 1,195 (`20261018-183907-prefill`).
+Runs in between, thinking off (~2k / ~8k / ~33k / ~131k): `04c41884` 759 / 1,718 / 1,806 / 1,772 and thinking on 1,598 /
+1,837 / 1,826 / 1,772 (`20261022-205404-prefill`), so through the server int8 is from 1% slower to 2% faster than bf16;
+`4f0c5e5e` 1,337 / 1,642 / 1,654 / 1,608 (`20261022-201421-prefill`), `845ccbd8` 1,334 / 1,614 / 1,581 / 1,525
+(`20261022-162728-prefill`); before them `6a4d7be7` 1,093 / 1,240 / 1,256 / 1,195 (`20261018-183907-prefill`).
 
 A 1,025,994-token prompt (numbered lines of words, a passphrase 37% of the way in, asked for at the end; thinking off)
 reached its first token in 740.0 s through the server on `04c41884`, 1,386 tok/s on average, and the reply was the
 passphrase. On `4f0c5e5e` the same kind of prompt took 836.5 s, and on `6a4d7be7` a 1,007,409-token prompt took
 1,783.5 s (565 tok/s). In the engine's depth profile a lone 3,968-row chunk at 1M depth runs at 1,132 tok/s
 (`4f0c5e5e`; 854 on `8557236a`, 402 on `6a4d7be7`).
+
+### The GPU's matrix units
+
+![Tensor-unit throughput by operand type: int8 x int8 248.4 TOPS, int8 x int4 174.1, bf16 x bf16 129.5, bf16 x int4 125.5, bf16 x int8 124.9](docs/matrix-formats.svg)
+
+Peak throughput of the M5 Ultra's tensor units by operand type (inputs x weights), in tera-operations a second, from
+[`tools/mmbench`](tools/mmbench): one 16x32x512 cooperative-tensor matmul repeated 512 times in each of 2,048
+threadgroups, the best of four dispatches. Each bar is the best of four runs (2026-10-22 and 23); the runs varied by up
+to 6%. Only int8 x int8 beats bf16, by about twice. bf16 inputs on int8 or int4 weights run at the bf16 rate, int4 is
+taken only as the weights (int4 inputs are refused as an unsupported type), and the Metal compiler has no 2-bit,
+3-bit, fp8 or fp4 operands. The checkpoint's 2- and 3-bit codes stay packed in memory and are widened in each tile
+just before the multiply, to bf16 before `72a552ed` and to int8 since.
 
 ### Several streams
 
@@ -155,7 +182,7 @@ Each row below was checked through the server's chat API on engine `269f2447`, a
 | Structured output | A `json_schema` reply parses and fits its schema |
 | Images | A pasted photo of carrots is answered "Carrot"; with `vision_urls` on, a public HTTPS image is described correctly, and loopback, LAN and plain-HTTP URLs are refused with a 400. On `aee8036c`: PNG, JPEG, WebP (lossy and lossless) and PNG with alpha as data URLs, text in an image read exactly, three circles counted, a 3000x2000 JPEG, four images in order, a fifth and a corrupt one refused with clear 400s, a 20k-token turn with an image resumed from the prompt cache next turn, two image requests at once |
 | Drafts | Drafted replies equal `"draft": false` replies (4 of 4); with the check program, a 268-token greedy reply drafted equals it plain |
-| Prompt cache | The harness `turns` check: a resumed third turn equals the same turn sent cold, with 4,541 of 4,561 tokens cached; a 1M conversation resumes in 7.8 s |
+| Prompt cache | The harness `turns` check (again on `72a552ed`, run `20261023-021357-speed`): a resumed third turn equals the same turn sent cold after a restart, with 4,541 of 4,561 tokens cached; a 1M conversation resumes in 7.8 s |
 | Concurrency | On `c4c69219` at `--parallel 4`: four requests at once (one sampled with a seed) each equal the same request alone; a reply decoding while a 60k-token prompt went in equals it alone; with `context` 20,000, a second ~12k-token request waited for the first and both finished |
 
 Two notes on these checks:
@@ -179,21 +206,23 @@ Two notes on these checks:
   - Details are on [#847](https://github.com/ashhart/TensorFold/issues/847#issuecomment-6256853391).
 - **The harness quality suite:** the [GLM-5.3 recipe's](https://github.com/BobClawblaw/glm53-flash-exl3-2x-dgx-sparks)
   suite through recipe-harness, served at 1M context, greedy.
-  - **Thinking off:** run `20261020-092851-dsv41-quality-off`, engine `8557236a` (the tiles). The 2026-10-20 run on
-    `bfad20ae` (the prompt-speed commit, row kernels) and the 2026-10-18 run on `269f2447` are in the notes.
+  - **Thinking off:** run `20261023-021709-dsv41-quality-off`, engine `72a552ed` (int8 experts in prompt chunks). The
+    bf16 runs on `8557236a` (the tiles), `bfad20ae` (the prompt-speed commit, row kernels) and `269f2447` are in the
+    notes.
   - **Thinking on:** run `20261019-034805-dsv41-thinking`, engine `7837387a` with a 32,768-token reserve, two requests
-    at a time.
-  - A lone stream's logits are byte-identical on all of these engines, on `c4c69219` and on `c14c1848`. On
-    `8557236a` a prompt's logits are the same and a window's differ (the tiles, above).
+    at a time. It was not repeated on `72a552ed`.
+  - A lone stream's logits are byte-identical on `269f2447`, `7837387a`, `bfad20ae`, `c4c69219` and `c14c1848`. On
+    `8557236a` a prompt's logits are the same and a window's differ (the tiles, above); on `72a552ed` a prompt's
+    differ (int8, above) and a window's are `8557236a`'s.
 
 | Check | Thinking off | Thinking on |
 |---|---|---|
-| GSM8K (first 250) | 245/250 (98.0%) | 243/250 (97.2%) |
-| MATH-500, the suite's fixed grader | 459/500 (91.8%) | at least 469/500 |
+| GSM8K (first 250) | 246/250 (98.4%) | 243/250 (97.2%) |
+| MATH-500, the suite's fixed grader | 468/500 (93.6%) | at least 469/500 |
 | MATH-500, as the runs graded it | the same (this run used the fixed grader) | 451/500 (90.2%) |
-| MGSM (8 languages, 30 each) | 219/240 (91.2%) | not run |
-| MMLU (342 questions) | 303/342 (88.6%) | not run |
-| IFEval (150 prompts) | 132/150 loose, 125/150 strict | not run |
+| MGSM (8 languages, 30 each) | 218/240 (90.8%) | not run |
+| MMLU (342 questions) | 307/342 (89.8%) | not run |
+| IFEval (150 prompts) | 129/150 loose, 122/150 strict | not run |
 | Tools | 58/60 | not run |
 | Structured output | 30/30 | not run |
 | GPQA-Diamond | not run | not run |
@@ -205,18 +234,23 @@ Notes on the table:
   thinking-on run was regraded from the answers it kept; it kept only its first 40 misses, hence "at least". The
   thinking-off runs of 2026-10-20 used the fixed grader from the start. Most of what is still marked wrong with
   thinking on is the same value written another way, plus four replies with no boxed answer. With thinking off it is
-  mostly wrong values plus 20 with no boxed answer. The details are in
+  mostly wrong values plus 12 with no boxed answer (20 on `8557236a`). The details are in
   [recipe-harness's README](https://github.com/BobClawblaw/recipe-harness#reading-quality-scores-the-graders-limits).
-- **Earlier thinking-off runs:** on `bfad20ae` (row kernels, 2026-10-20) GSM8K 246/250, MATH-500 462/500, MGSM
-  217/240, MMLU 306/342, IFEval 130/150 loose and 124/150 strict, tools 57/60; on `269f2447` (2026-10-18) GSM8K
-  247/250, MATH-500 457/500 as graded then (at least 465 regraded), MGSM 217/240, MMLU 307/342, IFEval 129/150 loose
-  and 122/150 strict, tools 58/60. The tiles run is within three questions of both on every check, up on some and
-  down on others, as a reduction-order change should be (the KL check above).
+- **Earlier thinking-off runs, all bf16:** on `8557236a` (the tiles, 2026-10-20) GSM8K 245/250, MATH-500 459/500,
+  MGSM 219/240, MMLU 303/342, IFEval 132/150 loose and 125/150 strict, tools 58/60; on `bfad20ae` (row kernels,
+  2026-10-20) GSM8K 246/250, MATH-500 462/500, MGSM 217/240, MMLU 306/342, IFEval 130/150 loose and 124/150 strict,
+  tools 57/60; on `269f2447` (2026-10-18) GSM8K 247/250, MATH-500 457/500 as graded then (at least 465 regraded),
+  MGSM 217/240, MMLU 307/342, IFEval 129/150 loose and 122/150 strict, tools 58/60. The tiles run is within three
+  questions of the other two on every check, up on some and down on others, as a reduction-order change should be
+  (the KL check above). The int8 run on `72a552ed` is inside the bf16 runs' range on every check except MATH-500,
+  where it is above them (468 against 459 and 462 with the fixed grader, and at least 465 regraded); its IFEval
+  matches the lowest.
 - **GSM8K with thinking on** misses two problems that thinking off gets right. Each turns on ambiguous wording read
   another way than the answer key. For example, it reads "two times older" as 1 + 2 x 1, and answers "how much more
   likely, as a percentage" with the relative difference rather than percentage points. The other five misses are
   the same in both modes.
-- **MATH-500 by level,** thinking off (the fixed grader): L1 43/43, L2 90/90, L3 97/105, L4 117/128, L5 112/134.
+- **MATH-500 by level,** thinking off (the fixed grader): L1 43/43, L2 90/90, L3 99/105, L4 117/128, L5 119/134
+  (on `8557236a`: L3 97, L5 112).
   Thinking on (as the run graded it): L1 41/43, L2 79/90, L3 96/105, L4 113/128, L5 122/134.
 - **GPQA-Diamond was not run to the end.** With thinking on and greedy decoding, two of its first twenty questions
   reasoned in a loop and never answered. Question 8 repeats the same passage about the molecule's symmetry from 38%
@@ -320,7 +354,8 @@ held 202.4 GiB once loaded, and at least 19.5 GiB stayed free through a 1,007,40
 |---|---|
 | `mac/` | `python3 -m mac`: settings, the engine build, the server, the launchd unit |
 | `template/` | The chat template (renders byte for byte like DeepSeek's `encoding/encoding.py`) and its checks |
-| `tools/` | The converter, the Engram split, the KL check against the fp4 release |
+| `tools/` | The converter, the Engram split, the KL check against the fp4 release, `mmbench` (the matrix-unit benchmark) |
+| `docs/` | The matrix-unit chart |
 | `ref/` | A CPU reference: DeepSeek's `model.py` and `engram.py` (MIT, `LICENSE.deepseek`), torch kernels, the loader, the whole-model gate |
 | `PLAN.md` | The work log, with how each number was measured |
 

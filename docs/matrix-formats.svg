@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="266" viewBox="0 0 720 266" role="img" aria-label="M5 Ultra tensor-unit throughput by operand format: int8 x int8 248.4, int8 x int4 174.1, bf16 x bf16 129.5, bf16 x int4 125.5, bf16 x int8 124.9 tera-ops per second">
+<style>text{font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;fill:#1f2328}.m{fill:#59636e;font-size:12px}.g{stroke:#d1d9e0}.r{stroke:#59636e}.b{fill:#afb8c1}.a{fill:#0969da}@media (prefers-color-scheme:dark){text{fill:#e6edf3}.m{fill:#9198a1}.g{stroke:#3d444d}.r{stroke:#9198a1}.b{fill:#656c76}.a{fill:#4493f8}}</style>
+<line class="g" x1="118.0" x2="118.0" y1="12" y2="228"/>
+<text class="m" x="118.0" y="246" text-anchor="middle">0</text>
+<line class="g" x1="221.5" x2="221.5" y1="12" y2="228"/>
+<text class="m" x="221.5" y="246" text-anchor="middle">50</text>
+<line class="g" x1="324.9" x2="324.9" y1="12" y2="228"/>
+<text class="m" x="324.9" y="246" text-anchor="middle">100</text>
+<line class="g" x1="428.4" x2="428.4" y1="12" y2="228"/>
+<text class="m" x="428.4" y="246" text-anchor="middle">150</text>
+<line class="g" x1="531.8" x2="531.8" y1="12" y2="228"/>
+<text class="m" x="531.8" y="246" text-anchor="middle">200</text>
+<line class="g" x1="635.3" x2="635.3" y1="12" y2="228"/>
+<text class="m" x="635.3" y="246" text-anchor="middle">250</text>
+<text class="m" x="716" y="246" text-anchor="end">TOPS</text>
+<text x="106" y="35.5" text-anchor="end">int8 × int8</text>
+<rect class="a" x="118" y="16" width="514.0" height="30" rx="4"/>
+<text x="640.0" y="35.5">248.4</text>
+<text x="106" y="79.5" text-anchor="end">int8 × int4</text>
+<rect class="b" x="118" y="60" width="360.3" height="30" rx="4"/>
+<text x="486.3" y="79.5">174.1</text>
+<text x="106" y="123.5" text-anchor="end">bf16 × bf16</text>
+<rect class="b" x="118" y="104" width="268.0" height="30" rx="4"/>
+<text x="394.0" y="123.5">129.5</text>
+<text x="106" y="167.5" text-anchor="end">bf16 × int4</text>
+<rect class="b" x="118" y="148" width="259.7" height="30" rx="4"/>
+<text x="385.7" y="167.5">125.5</text>
+<text x="106" y="211.5" text-anchor="end">bf16 × int8</text>
+<rect class="b" x="118" y="192" width="258.4" height="30" rx="4"/>
+<text x="384.4" y="211.5">124.9</text>
+</svg>

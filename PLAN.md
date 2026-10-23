@@ -369,3 +369,13 @@ top-1 agreement and logit error against the shipped fp4 weights).
     epilogues), so int8 alone gives 3-6%.
   - Cold engram: the 189 GB table stays memory-mapped on the SSD; a cold request's first chunk waits 0.6-1.9 s for its
     rows (later chunks gather theirs while the GPU runs).
+- int8 experts pinned (2026-10-23, engine 72a552ed, the WIP squashed; the runs below are on 5babc696, its comments aside
+  the same): scales a 32 columns, the int8 tile pieces in core/affine_mm_i8.h so affine_mm.metal stays under 600 lines.
+  A first split that moved the int8 epilogue into its own function compiled 27% slower than bf16 (experts 1,236 ms) with
+  byte-identical logits; the WIP's whole am_step in the header brought it back (912). Profile, int8 against DS_BF16:
+  1,825 / 1,620 / 1,379 / 1,140 against 1,772 / 1,581 / 1,347 / 1,115 tok/s at depth 0 / 131k / 524k / 1M. DS_BF16
+  byte-identical to 04c41884; DS_SHARED 5,880 of 5,880 rows and 1,680 drafts; DS_DRAFT 64/64. Harness
+  20261023-021006-prefill: off 656 (cold) / 1,739 / 1,829 / 1,793, on 1,614 / 1,867 / 1,807 / 1,769; turns pass
+  (20261023-021357-speed); thinking-off quality 20261023-021709-dsv41-quality-off: GSM8K 246, MATH-500 468, MGSM 218,
+  MMLU 307, IFEval 129/122, tools 58, json 30. Narrower operands checked: int4 x int4, int4 x int8 and uint4 x uint4 are
+  refused by MPP ("Unsupported type"), int2/int3 types do not exist; int4 is accepted only as the right operand.
