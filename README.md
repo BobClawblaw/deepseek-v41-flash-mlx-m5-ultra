@@ -185,9 +185,10 @@ Each row below was checked through the server's chat API on engine `269f2447`, a
 | Prompt cache | The harness `turns` check (again on `72a552ed`, run `20261023-021357-speed`): a resumed third turn equals the same turn sent cold after a restart, with 4,541 of 4,561 tokens cached; a 1M conversation resumes in 7.8 s |
 | Concurrency | On `c4c69219` at `--parallel 4`: four requests at once (one sampled with a seed) each equal the same request alone; a reply decoding while a 60k-token prompt went in equals it alone; with `context` 20,000, a second ~12k-token request waited for the first and both finished |
 
-Two notes on these checks:
-- **Images:** `image_url` parts, pasted as data URLs (base64), PNG or JPEG. One image takes at most 1,024 tokens, a
-  request at most 4,096 image tokens (`vision_image_tokens`), and at most 4 images (`vision_max_images`).
+Notes on these checks:
+- **Images:** `image_url` parts, pasted as data URLs (base64): PNG, JPEG or WebP (lossy and lossless); GIF is refused
+  with a 400. One image takes at most 1,024 tokens, a request at most 4,096 image tokens (`vision_image_tokens`), and
+  at most 4 images (`vision_max_images`).
 - **Image links:** `vision_urls = true` also lets the server fetch public HTTPS images. Every address and redirect must
   be public, there are at most 3 redirects, and fetches time out after 10 s each and 30 s a request. It is off by
   default, so a server on a LAN fetches nothing on its callers' behalf.
