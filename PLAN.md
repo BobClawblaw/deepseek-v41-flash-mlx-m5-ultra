@@ -344,3 +344,28 @@ top-1 agreement and logit error against the shipped fp4 weights).
   prompts under the cache's minimum are not kept, with or without images.
 - Retirement (2026-10-20): Ornith-1.5-122B (the ornith-15-122b-mlx-m5-ultra recipe) replaces this server on the Mac;
   the LaunchAgent is retired once Ornith serves. This recipe stays as the record of the DeepSeek port.
+- Prompt speed (2026-10-22, engines 845ccbd8, 4f0c5e5e, 04c41884; each bit-identical to aee8036c on the 1,500- and
+  8,192-token prompts, DS_SHARED 420/420 and 120/120, DS_DRAFT 64/64):
+  - 845ccbd8: parallel three-pass expert sort (one GPU thread took ~180 ms a chunk), the gate/up gather fused with the
+    route-weighted SwiGLU (core affine_mm Glu.weighted), ds_hc_expand_mix_rows, the router 4 outputs a simdgroup.
+  - 4f0c5e5e: index scores in bf16 with a two-pass top-k, kept scores a candidate block a simdgroup, block maxima at
+    their own width, Scratch.initDraft without score buffers, score budget 768 MB. Profile of a 3,968-row chunk:
+    1,548 / 1,333 / 1,132 / 854 tok/s (aee8036c) to 1,779 / 1,582 / 1,353 / 1,132 at depth 0 / 131k / 524k / 1M.
+  - 04c41884: a per-chunk trace of the served path showed every prompt in 1,024-row chunks (chat requests carry chunk
+    starts every 1,024 tokens and the backend cut at the first); a lone stream now cuts at the last start it reaches
+    (3,072 rows). Served replies equal the old build's on fresh and cache-resumed prompts; harness 131k 1,608 -> 1,772.
+  - Where a 3,968-row chunk's 2,230 ms go at depth 0: routed experts 973 (~75 TFLOPS), attend 331 (three-part fp32-exact
+    probabilities: ~2x the matrix work), attn out 290, attn proj 172, shared 128, boundaries 120, router 66, index 61.
+    The full-scan index scores run at ~100 TFLOPS at depth; 64-row expert tiles gave 1%, taller index tiles were slower.
+  - The M5 Ultra's matrix units (MetalPerformancePrimitives matmul2d, both operands from memory): bf16 130 TFLOPS,
+    int8 x int8 248 TOPS, bf16 x int8 125, bf16 x int4 125, int8 x int4 174; no int2, fp8 or fp4 on this compiler.
+    The one 2x lever is int8 x int8 (2-3-bit codes unpacked to int8 exactly, activations quantized per token), which
+    changes the replies and needs the quality suite.
+  - int8 routed experts (local branch deepseek-v41-int8, not pinned): core affine_mm TF_I8, x int8 with an fp32 scale
+    every 32 or 64 columns, int32 sums. A 3,968-row chunk: experts 962 -> 835 ms (64) or 902 (32), 1,802 -> 1,913 or
+    1,855 tok/s. Against bf16 logits on the 1,500-token prompt: scales a 64, mean KL 0.029 but one row flattened (KL
+    11.4); scales a 32, mean KL 0.018, max 1.14, next-token top-1 74.85% against bf16's 75.05% (bf16 one row a call
+    against bf16 chunks: KL 0.019, max 1.67, 75.92%). The kernel is not MMA-bound at 32-row tiles (unpacking, loads,
+    epilogues), so int8 alone gives 3-6%.
+  - Cold engram: the 189 GB table stays memory-mapped on the SSD; a cold request's first chunk waits 0.6-1.9 s for its
+    rows (later chunks gather theirs while the GPU runs).

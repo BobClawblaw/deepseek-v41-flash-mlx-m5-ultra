@@ -5,7 +5,7 @@ DeepSeek-V4.1-Flash-1017 served on a single 256 GB Mac Studio (M5 Ultra) by Tens
 - **Context:** the full 1,048,576-token window.
 - **Features:** DSpark drafts, the prompt cache, images, tools and structured output.
 - **Checkpoint:** [`BobClawblaw/DeepSeek-V4.1-Flash-1017-TensorFold-e2e3-p4-h8`](https://huggingface.co/BobClawblaw/DeepSeek-V4.1-Flash-1017-TensorFold-e2e3-p4-h8), 418 GB.
-- **Engine:** the `deepseek-v41-main` branch of [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold/tree/deepseek-v41-main), pinned at `aee8036c`.
+- **Engine:** the `deepseek-v41-main` branch of [BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold/tree/deepseek-v41-main), pinned at `04c41884`.
 
 The engine is not part of upstream TensorFold. The DeepSeek family upstream is being coordinated on
 [ashhart/TensorFold#847](https://github.com/ashhart/TensorFold/issues/847).
@@ -15,8 +15,9 @@ The engine is not part of upstream TensorFold. The DeepSeek family upstream is b
 Measured on one M5 Ultra (80-core GPU, 256 GB), macOS 27.0.1. Speed comes from
 [recipe-harness](https://github.com/BobClawblaw/recipe-harness), target `deepseek-v41-m5`; its `stats/` has every run.
 
-- **Engine for these runs:** the harness and 1M runs used build `6a4d7be7`. That commit was later reworded and rebased
-  onto TensorFold 1.1.0 as `269f2447`, with the same DeepSeek code.
+- **Engine for these runs:** each table names its engine and run. The prompt numbers and the 1M run are on `04c41884`;
+  decode and several streams are on `8557236a`, whose decode path the later builds keep. The first builds, `6a4d7be7`,
+  were reworded and rebased onto TensorFold 1.1.0 as `269f2447`, with the same DeepSeek code.
 - **`7837387a`** adds the thinking reserve (below) to the server and the lanes; the forward is unchanged.
 - **`f8a3ce2f`** adds a guard for reasoning that repeats a long passage verbatim (below); replies that don't loop are
   unchanged.
@@ -51,6 +52,25 @@ Measured on one M5 Ultra (80-core GPU, 256 GB), macOS 27.0.1. Speed comes from
   PNG and JPEG answered, GIF refused; spot checks 12 of 12. Against the study's fp4 replies (`tools/native_kl.py`, 190 teacher-forced tokens over three prompts) the tiles give
   KL 0.167 and top-1 0.889, the row kernels 0.164 and 0.893 (code 0.065 / 0.969 against 0.063 / 0.953, math 0.128 /
   0.859 against 0.134 / 0.859, zh 0.333 / 0.823 against 0.320 / 0.855).
+- **`845ccbd8`** makes a prompt chunk's experts, router and stream mixing faster. The routed slots are sorted by expert
+  in three parallel passes instead of on one GPU thread (about 180 ms to 2.5 ms a chunk); the experts' gate and up
+  projections and DeepSeek's route-weighted SwiGLU run as one kernel, with no sorted copy of the rows; the stream mixing
+  between layers takes four rows a threadgroup; the router reads each input once for four outputs.
+- **`4f0c5e5e`** makes the indexer faster at depth. Index scores are kept as bf16 (they were already rounded to bf16)
+  and their top-k takes two radix passes instead of four; the kept-candidate scores read each query once for a block of
+  8 keys; the draft head's scratch no longer holds index scores, so the prompt's score buffer grows from 256 MB to
+  768 MB with 64 MB less in all, and a chunk at 1M takes 384-row slices instead of 64.
+- **`04c41884`** gives a lone stream's prompt the wide chunks `bfad20ae` meant it to have. Chat requests carry chunk
+  starts every 1,024 tokens (the prompt cache's save points) and each chunk was cut at the first, so every served
+  prompt went in 1,024-row chunks; a lone stream's chunk now runs on to the last start it reaches (3,072 rows). Beside
+  other streams, and at save marks, chunks are cut as before.
+- **These three were checked:** logits are byte-identical to `aee8036c` on the 1,500-token and 8,192-token prompts (in
+  chunks of 1,024 and 3,968); four shared streams equal each alone (420 of 420 rows, 120 of 120 drafts); drafted equals
+  plain on 64 of 64 tokens; decode is unchanged. Through the served API, `04c41884`'s greedy replies equal the
+  1,024-row build's on a fresh 10,776-token prompt, a 37,308-token one and a turn resumed from the prompt cache. In the
+  engine's depth profile (`tf-dsv41-forward DS_DEPTH`, a lone 3,968-row chunk) the chunk went from 1,548 to 1,779 tok/s
+  at depth 0 and from 854 to 1,132 at 1M (`aee8036c` to `4f0c5e5e`). A spot check through the served API on `04c41884`
+  passed: a data-URL image, a `get_weather` call, a `json_schema` reply and a drafted reply equal to its plain one.
 
 ### Decode, one stream
 
@@ -65,20 +85,30 @@ is one sample from a script, not the harness.
 
 ### Prompts, cold
 
-Harness prefill plan, run `20261020-091454-prefill` on `8557236a`. One fresh prompt per size, timed to the first token
+Harness prefill plan, run `20261022-205404-prefill` on `04c41884`. One fresh prompt per size, timed to the first token
 (with thinking on, the first reasoning token).
 
 | Prompt tokens | Thinking off | Thinking on |
 |---|---|---|
-| ~2k | 1,222 tok/s | 1,366 tok/s |
-| ~8k | 1,451 tok/s | 1,445 tok/s |
-| ~33k | 1,422 tok/s | 1,424 tok/s |
-| ~131k | 1,380 tok/s | 1,378 tok/s |
+| ~2k | 759 tok/s (cold, below) | 1,598 tok/s |
+| ~8k | 1,718 tok/s | 1,837 tok/s |
+| ~33k | 1,806 tok/s | 1,826 tok/s |
+| ~131k | 1,772 tok/s | 1,772 tok/s |
 
-On `6a4d7be7` (run `20261018-183907-prefill`) these were 1,093 / 1,240 / 1,256 / 1,195 tok/s thinking off, and a
-1,007,409-token prompt took 1,783.5 s (565 tok/s on average) through the server. That 1M prompt has not been re-sent on
-`8557236a`; in the engine's depth profile (`tf-dsv41-forward DS_DEPTH`, a lone 3,968-row chunk) the chunk at 1M depth
-went from 402 to 854 tok/s, at 524k from 604 to 1,132.
+The ~2k thinking-off prompt was the run's first request after the server loaded. Its first chunk waits on the engram
+table, 189 GB that stays on the SSD (memory-mapped beside ~200 GB of weights): a prompt's later chunks have their rows
+read while the GPU runs the chunk before, but the first has nothing to hide behind, and after a load or a few idle
+minutes its rows are cold. That adds 0.6-1.9 s to a cold request's first token; warm requests do not pay it.
+
+Earlier runs, thinking off (~2k / ~8k / ~33k / ~131k): `4f0c5e5e` 1,337 / 1,642 / 1,654 / 1,608
+(`20261022-201421-prefill`), `845ccbd8` 1,334 / 1,614 / 1,581 / 1,525 (`20261022-162728-prefill`), `8557236a` 1,222 /
+1,451 / 1,422 / 1,380 (`20261020-091454-prefill`), `6a4d7be7` 1,093 / 1,240 / 1,256 / 1,195 (`20261018-183907-prefill`).
+
+A 1,025,994-token prompt (numbered lines of words, a passphrase 37% of the way in, asked for at the end; thinking off)
+reached its first token in 740.0 s through the server on `04c41884`, 1,386 tok/s on average, and the reply was the
+passphrase. On `4f0c5e5e` the same kind of prompt took 836.5 s, and on `6a4d7be7` a 1,007,409-token prompt took
+1,783.5 s (565 tok/s). In the engine's depth profile a lone 3,968-row chunk at 1M depth runs at 1,132 tok/s
+(`4f0c5e5e`; 854 on `8557236a`, 402 on `6a4d7be7`).
 
 ### Several streams
 
@@ -106,7 +136,7 @@ request that would pass it waits until a stream ends, and the requests queued be
 
 ## What works, and how it was checked
 
-Each row below was checked through the server's chat API on engine `269f2447`, apart from the harness checks, the 1M run and the check program noted, which ran on the same code before the rebase. On `c14c1848` and again on `8557236a` a spot check through the served API passed: a repeated `seed` at temperature 1 repeats its reply and no seed draws fresh ones, thinking on and off, a `get_weather` call, a `json_schema` reply, a data-URL image, a drafted reply equal to its plain one, and a LAN `Host` header.
+Each row below was checked through the server's chat API on engine `269f2447`, apart from the harness checks, the 1M run and the check program noted, which ran on the same code before the rebase. On `c14c1848`, again on `8557236a` and, without the `seed` and `Host` checks, on `04c41884` a spot check through the served API passed: a repeated `seed` at temperature 1 repeats its reply and no seed draws fresh ones, thinking on and off, a `get_weather` call, a `json_schema` reply, a data-URL image, a drafted reply equal to its plain one, and a LAN `Host` header.
 
 | Feature | Check |
 |---|---|
