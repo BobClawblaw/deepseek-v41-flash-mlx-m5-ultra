@@ -15,6 +15,23 @@ The engine is not part of upstream TensorFold. The DeepSeek family upstream is b
 Measured on one M5 Ultra (80-core GPU, 256 GB), macOS 27.0.1. Speed comes from
 [recipe-harness](https://github.com/BobClawblaw/recipe-harness), target `deepseek-v41-m5`; its `stats/` has every run.
 
+> **Which checkpoint these numbers come from (corrected 2026-11-14).** The runs up to 2026-10-19 served the public
+> pack this README tells you to download. From 2026-10-20 on, the measuring Mac served a local modified checkpoint
+> instead: the same pack with some attention weights changed (same formats and shapes), which is not published.
+> The harness recorded the public pack's settings for those runs because its checkpoint probe read `recipe.toml`
+> rather than the folder the server loaded; the probe is fixed and the harness's notes say which runs were which.
+> - **On the public pack:** the KL against the fp4 release (0.138, engine `fcf9e0b4`), the thinking-on quality run
+>   (`20261019-034805`), the thinking-off quality run on `269f2447` (2026-10-18), the four-stream run on `c4c69219`
+>   (`20261019-090829`), the `6a4d7be7` prompt speeds and the first 1M recall (1,007,409 tokens, 2026-10-17).
+> - **On the modified checkpoint:** every other harness run quoted below, including the decode and several-streams
+>   tables (`20261020-091934`), the current prompt speeds (`20261020-091454`, `20261023-021006` and the runs between),
+>   the thinking-off quality runs on `8557236a`, `bfad20ae` and `72a552ed`, the prompt-cache `turns` check
+>   (`20261023-021357`), and the 1,025,994-token prompt on `04c41884`. The checkpoint used for the
+>   tiles-versus-row-kernel KL on `8557236a` was not recorded.
+> - **What carries over:** prompt speed runs the same shapes and formats on both. Decode speed depends on how often
+>   drafts are accepted, and quality is the weights', so those numbers are the modified
+>   checkpoint's until they are measured again on the public pack.
+
 - **Engine for these runs:** each table names its engine and run. The prompt numbers and the thinking-off quality run
   are on `72a552ed` and the 1M run on `04c41884`; decode and several streams are on `8557236a`, whose decode path the
   later builds keep. The first builds, `6a4d7be7`, were reworded and rebased onto TensorFold 1.1.0 as `269f2447`, with
@@ -88,7 +105,8 @@ Measured on one M5 Ultra (80-core GPU, 256 GB), macOS 27.0.1. Speed comes from
 
 ### Decode, one stream
 
-Harness speed plan, run `20261020-091934-dsv41-speed` on `8557236a`. Drafts on, thinking off, greedy, short prompts.
+Harness speed plan, run `20261020-091934-dsv41-speed` on `8557236a`, served from the modified checkpoint
+(above). Drafts on, thinking off, greedy, short prompts.
 
 | Prose | Code | Structured | List | First token |
 |---|---|---|---|---|
@@ -100,7 +118,8 @@ is one sample from a script, not the harness.
 ### Prompts, cold
 
 Harness prefill plan: run `20261020-091454-prefill` on `8557236a` (the prompt path `aee8036c` kept) against run
-`20261023-021006-prefill` on `72a552ed`. One fresh prompt per size, timed to the first token (with thinking on, the
+`20261023-021006-prefill` on `72a552ed`, both served from the modified checkpoint (above).
+One fresh prompt per size, timed to the first token (with thinking on, the
 first reasoning token); tok/s.
 
 | Prompt tokens | Thinking off, old | Thinking off, now | Thinking on, old | Thinking on, now |
@@ -216,7 +235,7 @@ Notes on these checks:
     `8557236a` a prompt's logits are the same and a window's differ (the tiles, above); on `72a552ed` a prompt's
     differ (int8, above) and a window's are `8557236a`'s.
 
-| Check | Thinking off | Thinking on |
+| Check | Thinking off (the modified checkpoint) | Thinking on (the public pack) |
 |---|---|---|
 | GSM8K (first 250) | 246/250 (98.4%) | 243/250 (97.2%) |
 | MATH-500, the suite's fixed grader | 468/500 (93.6%) | at least 469/500 |
